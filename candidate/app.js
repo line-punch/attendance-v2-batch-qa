@@ -424,7 +424,7 @@ onAction("login",async()=>{
    status("請關閉此視窗，再從 LINE 開啟 QA 入口以重新登入；尚未自動重送任何申請。");return;
   }
   if(liff.isLoggedIn()&&typeof liff.logout==="function")liff.logout();
-  status("正在開啟 LINE 登入，請完成登入確認。","busy");liff.login();return;
+  status("正在開啟 LINE 登入，請完成登入確認。","busy");liff.login({redirectUri:window.location.href});return;
  }
  await init();
  status(loggedIn?"LINE 登入已確認。":$("identity").textContent,loggedIn?"success":"error");
