@@ -393,7 +393,7 @@ async function execute(op,{write=false,decision=null}={}){
     submittedMonth={operation:op==="LEAVE_REQUEST"?"MY_LEAVES":"MY_MISSING",month:date.slice(0,7)};
     $("viewSubmittedMonth").hidden=false;
     $("viewSubmittedMonth").textContent="查看 "+submittedMonth.month+" 紀錄";
-    summaries[op]+="日期："+date+(request.endDate&&request.endDate!==date?"～"+request.endDate:"")+"。可按「查看該月紀錄」。";
+    summaries[op]+="日期："+date+(request.endDate&&request.endDate!==date?"～"+request.endDate:"")+"。可在下方選擇月份，按「重新整理當月紀錄」。";
    }
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
@@ -490,7 +490,7 @@ async function init(){
   await liff.init({liffId:LIFF_ID});
   selectStaffPage();
   loggedIn=liff.isLoggedIn()&&!!liff.getIDToken();
-  if(loggedIn)status(unknownWrite?"上次送出結果未確認，請點開紀錄核對，暫勿重送。":"LINE 登入已確認，可直接操作。",unknownWrite?"unknown":"success");
+  if(loggedIn)status(unknownWrite?"上次送出結果未確認，請按重新整理當月紀錄核對，暫勿重送。":"LINE 登入已確認，可直接操作。",unknownWrite?"unknown":"success");
   $("identity").textContent=loggedIn?"已登入 LINE 帳號；仍需伺服器核對 員工綁定":
    "請按登入，完成 LINE 登入";
   prepareReviewEntry();
