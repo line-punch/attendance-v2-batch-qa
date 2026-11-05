@@ -18,4 +18,3 @@ const api={read,uri};
 if(typeof module==="object"&&module.exports)module.exports=api;
 else root.V2QAReviewEntry=api;
 })(typeof window!=="undefined"?window:this);
-

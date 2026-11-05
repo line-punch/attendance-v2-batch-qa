@@ -293,7 +293,6 @@ function post(url,op,idToken,args){
  });
 }
 async function execute(op,{write=false,decision=null}={}){
- if(write){status("候選版目前只開放登入與查詢，尚未開放送件或審核。","error");return;}
  if(busy)return;
  let writeStarted=false;
  try{
@@ -501,5 +500,4 @@ for(const [id,type] of [["clockIn","上班"],["clockOut","下班"]]){
 if(unknownWrite)document.querySelectorAll("button").forEach(b=>{if(writeButtons.has(b.id))b.disabled=true;});
 init();
 })();
-
 
