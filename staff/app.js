@@ -397,7 +397,7 @@ async function execute(op,{write=false,decision=null}={}){
    }
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
-  if(write&&found)collapseStaffRecords(op);
+  if((write&&found)||["MY_CLOCKS","MY_LEAVES","MY_MISSING"].includes(op))collapseStaffRecords(op);
   let success=summaries[op]||"查詢完成。";if(op==="GPS_CLOCK"&&found)success=found.type+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success");
   return response;
  }catch(e){
@@ -476,17 +476,11 @@ function selectStaffPage(){
  document.querySelector("h1").textContent="YC/YT員工系統｜"+label;
 }
 function prepareStaffRecords(){
- for(const [id,read] of [["clockRecords",()=>refreshStaffClocks()],["leaveRecords",()=>refreshStaffApplications("MY_LEAVES")],["missingRecords",()=>refreshStaffApplications("MY_MISSING")]]){
-  $(id).addEventListener("toggle",async()=>{
-   if(!$(id).open)return;
-   if(busy||uiBusy){status("目前有操作正在執行，請稍後按紀錄中的重新整理。","busy");return;}
-   await read();
-  });
- }
+ for(const id of ["clockHistoryTable","leaveHistory","missingHistory"])$(id).hidden=true;
 }
 function collapseStaffRecords(operation){
- const id={GPS_CLOCK:"clockRecords",LEAVE_REQUEST:"leaveRecords",MISSING_REQUEST:"missingRecords"}[operation];
- if(id)$(id).open=false;
+ const id={GPS_CLOCK:"clockHistoryTable",LEAVE_REQUEST:"leaveHistory",MISSING_REQUEST:"missingHistory",MY_CLOCKS:"clockHistoryTable",MY_LEAVES:"leaveHistory",MY_MISSING:"missingHistory"}[operation];
+ if(id)$(id).hidden=!operation.startsWith("MY_");
 }
 async function init(){
  try{
