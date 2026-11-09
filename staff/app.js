@@ -413,7 +413,15 @@ async function execute(op,{write=false,decision=null}={}){
   if(op==="HR_PENDING")renderStaffQueue(response.result);
   if(op==="MY_LEAVES"||op==="MY_MISSING")renderHistory(op,response.result);
   if(op==="MY_CLOCKS")renderClocks(response.result);
-  if(op==="GPS_CLOCK"||op==="GPS_STATUS"){staffShiftPolicy=null;try{await loadStaffShiftPolicy();}catch(_){status("打卡結果請以紀錄為準；班別顯示暫未更新。","unknown");}}
+  if(op==="GPS_CLOCK"||op==="GPS_STATUS"){
+   // A confirmed write must not wait for a second network request to display success.
+   const saved=response.result&&response.result.request;
+   if(saved&&saved.date===localToday()&&staffShiftPolicy&&staffShiftPolicy.date===saved.date&&["STANDARD","EARLY"].includes(saved.shiftCode)){
+    staffShiftPolicy={...staffShiftPolicy,todayShift:saved.shiftCode,clockInRecorded:true};
+    $("staffShiftBox").hidden=true;
+    $("staffShiftSaved").textContent=staffShiftPolicy.choiceRequired?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[saved.shiftCode]):"";
+   }else staffShiftPolicy=null;
+  }
   const found=response.result&&response.result.request;
   if(op==="HR_STATUS"&&found&&!reviewEntry)reviewEntry={requestId:found.requestId,decision:"REVIEW"};
   if(op==="HR_STATUS"&&reviewEntry&&found&&found.requestId===reviewEntry.requestId){
@@ -628,4 +636,5 @@ prepareStaffRecords();
 selectStaffPage();
 init();
 })();
+
 
