@@ -57,9 +57,10 @@ function onAction(id,handler){
   const previous=buttons.map(b=>b.disabled);
   uiBusy=true;
   buttons.forEach(b=>{b.disabled=true;});
-  button.textContent="處理中…";
+  const shortProgress=["clockIn","clockOut"].includes(id)?"打卡中…":["submitLeave","submitMissing"].includes(id)?"申請上傳中…":"處理中…";
+  button.textContent=shortProgress;
   button.setAttribute("aria-busy","true");button.setAttribute("data-state","busy");
-  const progress="正在處理「"+label+"」，請稍候…";
+  const progress=shortProgress;
   status(progress,"busy");
   try{await handler();if($("feedback").textContent===progress)
    status(unknownWrite?"仍有待核對的原申請，請先回查。":"已完成："+label,unknownWrite?"unknown":"success");}
@@ -122,9 +123,9 @@ function staffReplyMessage(response,operation){
  };
  return messages[response.reason]||'本次操作未確認成功，請先重新整理紀錄，再交由管理者核對。';
 }
-function status(t,phase="info"){
+function status(t,phase="info",publicText=null){
  $("result").textContent=t;
- $("feedback").textContent=String(t).split("\n")[0];
+ $("feedback").textContent=publicText===null?String(t).split("\n")[0]:publicText;
  $("feedback").setAttribute("data-phase",phase);
 }
 function rememberWrite(value){
@@ -372,7 +373,7 @@ async function execute(op,{write=false,decision=null}={}){
   if(op==="GPS_CLOCK"){
    args={...args,...await staffShiftArgs(clockType)};
    busy=true;document.querySelectorAll("button").forEach(b=>{b.disabled=true});
-   status("正在取得新的 GPS 定位，尚未送出打卡…","busy");
+   status("正在取得新的 GPS 定位，尚未送出打卡…","busy","打卡中…");
    args={...args,...await obtainGPS()};
   }
   if(op==="HR_REVIEW"&&!/^[A-Za-z0-9_-]{12,80}$/.test(args.requestId))
@@ -383,7 +384,7 @@ async function execute(op,{write=false,decision=null}={}){
   }
   busy=true;
   document.querySelectorAll("button").forEach(b=>{if(b.id!=="login")b.disabled=true});
-  status("操作執行中；請勿重複點擊。\n原申請編號："+(args.requestId||"無"),"busy");
+  status("操作執行中；請勿重複點擊。\n原申請編號："+(args.requestId||"無"),"busy",op==="GPS_CLOCK"?"打卡中…":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"申請上傳中…":op==="GPS_STATUS"?"正在確認，請勿重複按…":"查詢中…");
   const response=await post(endpoint,op,token,args);
   if(response.ok!==true){
    if(response.code==="AUTH"){
@@ -460,21 +461,21 @@ async function execute(op,{write=false,decision=null}={}){
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
   if((write&&found)||["MY_CLOCKS","MY_LEAVES","MY_MISSING"].includes(op))collapseStaffRecords(op);
-  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=found.type+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success");
+  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=found.type+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"上傳成功":null);
   return response;
  }catch(e){
   if(writeStarted)unknownWrite=true;
   reconcileClock=writeStarted&&op==="GPS_CLOCK"&&String(e&&e.message||e).startsWith("45 秒");
   status("⚠️ "+String(e&&e.message||e)+
-   (writeStarted?"\n寫入結果未確認：保留原單號，先查詢，不要再次送出。":""),writeStarted?"unknown":"error");
+   (writeStarted?"\n寫入結果未確認：保留原單號，先查詢，不要再次送出。":""),writeStarted?"unknown":"error",writeStarted?"正在確認，請勿重複按…":null);
  }finally{
   busy=false;
   document.querySelectorAll("button").forEach(b=>{b.disabled=b.dataset&&b.dataset.unavailable==="true"});
   if(reconcileClock&&pendingWrite&&pendingWrite.operation==="GPS_CLOCK"){
    // Read the same original once. Never replay GPS_CLOCK or load monthly history.
-   status("尚未收到打卡回覆，正在自動確認原筆結果；請勿再按上班或下班。","busy");
+   status("尚未收到打卡回覆，正在自動確認原筆結果；請勿再按上班或下班。","busy","正在確認，請勿重複按…");
    await execute("GPS_STATUS");
-   if(pendingWrite&&pendingWrite.operation==="GPS_CLOCK")status("原筆結果仍待確認，請稍後按「重新整理當月紀錄」；不要重打。","unknown");
+   if(pendingWrite&&pendingWrite.operation==="GPS_CLOCK")status("原筆結果仍待確認，請稍後按「重新整理當月紀錄」；不要重打。","unknown","尚未確認，請稍後查詢紀錄，勿重複打卡。");
   }
  }
 }
