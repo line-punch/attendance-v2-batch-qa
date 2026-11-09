@@ -93,6 +93,31 @@ for(const page of pages){
   }
  });
 }
+function staffReplyMessage(response,operation){
+ const clock=operation==='GPS_CLOCK',write=['GPS_CLOCK','LEAVE_REQUEST','MISSING_REQUEST','HR_REVIEW'].includes(operation);
+ if(response.code==='UNKNOWN'||response.persisted===null)
+  return clock?'打卡結果尚未確認，請重新整理當月紀錄，先不要再打一次。':
+   write?'送件結果尚未確認，請重新整理紀錄，先不要重複送出。':'紀錄暫時無法確認，請稍後重新整理。';
+ if(response.code==='AUTH')return 'LINE 驗證未通過，請按「重新登入 LINE」。';
+ if(response.code==='DISABLED')return '系統暫時未開放寫入，請稍後再查看；本次未寫入。';
+ const messages={
+  ALREADY_CLOCKED:'今天已有這類打卡，請查看當月紀錄，不必重打。',
+  SAME_MINUTE:'這一分鐘已有打卡，請先查看當月紀錄，不要連續重按。',
+  OUT_OF_RANGE:'目前定位超出打卡地點 50 公尺範圍，本次未寫入。',
+  GPS_ACCURACY:'定位精度不足，本次未寫入；請確認精確位置與定位訊號。',
+  GPS_EXPIRED:'定位已過期，本次未寫入；請重新取得定位。',
+  GPS_INVALID:'定位資料無效，本次未寫入；請確認手機定位設定。',
+  SITE_NOT_FOUND:'查不到可用的打卡地點，請交由管理者核對。',
+  NOT_FOUND:'尚未查到原申請，不能據此判定失敗；請保留原編號，不要重送。',
+  REQUEST_ID_CONFLICT:'原申請編號與資料不一致，請保留編號交由管理者核對。',
+  NON_WORKDAY_IN_RANGE:'申請範圍包含非工作日，請依工作日分開申請。',
+  CALENDAR_OR_EVENT_REVIEW_REQUIRED:'該日期的行事曆或停班事件須人資核對，暫不能送件。',
+  LEAVE_HOURS_INVALID:'請檢查請假時段：指定時數只限單日，結束時間須晚於開始時間。',
+  LEAVE_DATES_INVALID:'請檢查開始及結束日期，結束日期不可早於開始日期。',
+  CONFIG_OR_FORM:'系統設定或送出格式需核對，請聯絡管理者；本次未寫入。'
+ };
+ return messages[response.reason]||'本次操作未確認成功，請先重新整理紀錄，再交由管理者核對。';
+}
 function status(t,phase="info"){
  $("result").textContent=t;
  $("feedback").textContent=String(t).split("\n")[0];
@@ -352,7 +377,7 @@ async function execute(op,{write=false,decision=null}={}){
     CALENDAR_OR_EVENT_REVIEW_REQUIRED:"該日期的行事曆或停班事件仍須人資核對，暫不能送件。",
     LEAVE_HOURS_INVALID:"指定時數只能申請單日，且結束時間須晚於開始時間。",
     LEAVE_DATES_INVALID:"請檢查開始與結束日期，結束日期不可早於開始日期。"};
-   status((response.code==="AUTH"?"LINE 驗證未通過，請按「重新登入 LINE」。":"系統回覆："+String(response.code||"UNKNOWN"))+
+   status(staffReplyMessage(response,op)+"\n處理代碼："+String(response.code||"UNKNOWN")+(response.reason?"／"+String(response.reason):"")+
     "\n"+(response.persisted===null?"結果不明，請保留原編號查詢。":
       messages[response.reason]||(response.code==="DISABLED"?"目前尚未開放寫入，本次未寫入。":"本次未確認成功。"))+
     "\n原申請編號："+(args.requestId||"無"),response.persisted===null?"unknown":"error");
