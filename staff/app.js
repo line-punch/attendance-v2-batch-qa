@@ -101,6 +101,10 @@ function staffReplyMessage(response,operation){
  if(response.code==='AUTH')return 'LINE 驗證未通過，請按「重新登入 LINE」。';
  if(response.code==='DISABLED')return '系統暫時未開放寫入，請稍後再查看；本次未寫入。';
  const messages={
+  SHIFT_REQUIRED:"請先選擇主管通知的今日班別；若看不到選單，請關閉後重新開啟。",
+  SHIFT_IN_NOT_CONFIRMED:"上班班別尚未確認，請聯絡人資核對；本次尚未寫入。",
+  SHIFT_NOT_ALLOWED:"此帳號未開放選擇早班；本次尚未寫入。",
+  SHIFT_ROLLOUT_PAUSED:"選班功能暫停新增上班卡，請聯絡人資；下班仍沿用原班別。",
   ALREADY_CLOCKED:'今天已有這類打卡，請查看當月紀錄，不必重打。',
   SAME_MINUTE:'這一分鐘已有打卡，請先查看當月紀錄，不要連續重按。',
   OUT_OF_RANGE:'目前定位超出打卡地點 50 公尺範圍，本次未寫入。',
@@ -319,6 +323,28 @@ function post(url,op,idToken,args){
   try{form.submit()}catch(e){done(e)}
  });
 }
+
+let staffShiftPolicy=null;
+async function loadStaffShiftPolicy(){
+ const reply=await post(validatedEndpoint($("endpoint").value),"CLOCK_POLICY",verifiedToken(),{});
+ const p=reply&&reply.ok&&reply.result;
+ if(!p||p.ok!==true||p.readOnly!==true||typeof p.choiceRequired!=="boolean"||!/^\d{4}-\d{2}-\d{2}$/.test(p.date)||JSON.stringify(p.shifts)!==JSON.stringify(p.choiceRequired?["STANDARD","EARLY"]:["STANDARD"]))throw Error("班別規則尚未確認，請稍後重新登入；尚未送出打卡。");
+ staffShiftPolicy=p;$("staffShiftBox").hidden=!p.choiceRequired||p.clockInRecorded;
+ $("staffShift").disabled=unknownWrite;
+ $("staffShiftSaved").textContent=p.choiceRequired&&p.clockInRecorded?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[p.todayShift]||"待核對，請聯絡人資"):"";
+ return p;
+}
+async function staffShiftArgs(type){
+ const p=staffShiftPolicy&&staffShiftPolicy.date===localToday()?staffShiftPolicy:await loadStaffShiftPolicy();
+ if(!p.choiceRequired)return {};
+ if(type==="下班"){
+  if(!["EARLY","STANDARD"].includes(p.todayShift))throw Error("上班班別尚未確認，請聯絡人資；尚未送出下班打卡。");
+  return {};
+ }
+ if(!["EARLY","STANDARD"].includes($("staffShift").value))throw Error("請先選擇主管通知的今日班別。");
+ return {shiftCode:$("staffShift").value};
+}
+
 async function execute(op,{write=false,decision=null}={}){
  if(busy)return;
  let writeStarted=false;
@@ -344,6 +370,7 @@ async function execute(op,{write=false,decision=null}={}){
    requestId:$("hrRequestId").value.trim(),decision
   }:op==="GPS_CLOCK"?{requestId:requestId(),type:clockType}:requestBody(op);
   if(op==="GPS_CLOCK"){
+   args={...args,...await staffShiftArgs(clockType)};
    busy=true;document.querySelectorAll("button").forEach(b=>{b.disabled=true});
    status("正在取得新的 GPS 定位，尚未送出打卡…","busy");
    args={...args,...await obtainGPS()};
@@ -351,7 +378,7 @@ async function execute(op,{write=false,decision=null}={}){
   if(op==="HR_REVIEW"&&!/^[A-Za-z0-9_-]{12,80}$/.test(args.requestId))
    throw Error("缺少人資審核原單號");
   if(write){
-   rememberWrite({operation:op,requestId:args.requestId,...(op==="GPS_CLOCK"?{type:args.type}:{})});
+   rememberWrite({operation:op,requestId:args.requestId,...(op==="GPS_CLOCK"?{type:args.type,...(args.shiftCode?{shiftCode:args.shiftCode}:{})}:{})});
    writeStarted=true;
   }
   busy=true;
@@ -386,6 +413,7 @@ async function execute(op,{write=false,decision=null}={}){
   if(op==="HR_PENDING")renderStaffQueue(response.result);
   if(op==="MY_LEAVES"||op==="MY_MISSING")renderHistory(op,response.result);
   if(op==="MY_CLOCKS")renderClocks(response.result);
+  if(op==="GPS_CLOCK"||op==="GPS_STATUS"){staffShiftPolicy=null;try{await loadStaffShiftPolicy();}catch(_){status("打卡結果請以紀錄為準；班別顯示暫未更新。","unknown");}}
   const found=response.result&&response.result.request;
   if(op==="HR_STATUS"&&found&&!reviewEntry)reviewEntry={requestId:found.requestId,decision:"REVIEW"};
   if(op==="HR_STATUS"&&reviewEntry&&found&&found.requestId===reviewEntry.requestId){
@@ -406,6 +434,7 @@ async function execute(op,{write=false,decision=null}={}){
       (op==="GPS_STATUS"&&pendingWrite.operation==="GPS_CLOCK")||
       (op==="HR_STATUS"&&pendingWrite.operation==="HR_REVIEW"&&["APPROVED","REJECTED"].includes(found.status))))
   {
+   if(pendingWrite.shiftCode&&found.shiftCode!==pendingWrite.shiftCode)throw Error("原打卡班別尚未核對，請保留原筆，不要重送。");
    confirmForm(pendingWrite.operation,found.requestId);rememberWrite(null);writeStarted=false;
   }
   const summaries={MY_CLOCKS:"當月正常打卡紀錄已更新。",MY_LEAVES:"當月請假紀錄已更新。",
@@ -519,6 +548,7 @@ async function init(){
   $("identity").textContent=loggedIn?"已登入 LINE 帳號；仍需伺服器核對 員工綁定":
    "請按登入，完成 LINE 登入";
   prepareReviewEntry();
+  if(loggedIn&&!$("pageClock").hidden)await loadStaffShiftPolicy();
   if(new URL(window.location.href).searchParams.get("review")==="1"){$("reviewPanel").open=true;$("hrPending").hidden=false;if(loggedIn)await execute("HR_PENDING");}else if(!reviewEntry){const pageArg=new URL(window.location.href).searchParams.get("page")||"clock";const target={clock:"Clock",leave:"Leave",miss:"Missing",missing:"Missing",query:"Hr",hr:"Hr"}[pageArg]||"Clock";for(const name of pages){$("page"+name).hidden=name!==target;$("nav"+name).setAttribute("aria-pressed",String(name===target));}}
  }catch(e){loggedIn=false;$("identity").textContent=String(e.message||e)}
 }
