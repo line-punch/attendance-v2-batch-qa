@@ -347,7 +347,7 @@ async function staffShiftArgs(type){
 
 async function execute(op,{write=false,decision=null}={}){
  if(busy)return;
- let writeStarted=false;
+ let writeStarted=false,reconcileClock=false;
  try{
   if(!loggedIn||!liff.isLoggedIn())throw Error("請先登入 LINE");
   if(!$("confirmed").checked)throw Error("請確認使用員工服務 測試部署");
@@ -447,7 +447,7 @@ async function execute(op,{write=false,decision=null}={}){
   }
   const summaries={MY_CLOCKS:"當月正常打卡紀錄已更新。",MY_LEAVES:"當月請假紀錄已更新。",
    MY_MISSING:"當月補打卡紀錄已更新。",LEAVE_REQUEST:"請假申請已送出。",MISSING_REQUEST:"補打卡申請已送出。",
-   GPS_CLOCK:"打卡成功。",LEAVE_PREVIEW:"請假日期檢查完成。"};
+   GPS_CLOCK:"打卡成功。",GPS_STATUS:"原筆打卡已確認成功。",LEAVE_PREVIEW:"請假日期檢查完成。"};
   if(op==="LEAVE_REQUEST"||op==="MISSING_REQUEST"){
    const request=response.result&&response.result.request;
    if(request&&/^\d{4}-\d{2}-\d{2}$/.test(String(request.startDate||request.date||""))){
@@ -460,15 +460,22 @@ async function execute(op,{write=false,decision=null}={}){
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
   if((write&&found)||["MY_CLOCKS","MY_LEAVES","MY_MISSING"].includes(op))collapseStaffRecords(op);
-  let success=summaries[op]||"查詢完成。";if(op==="GPS_CLOCK"&&found)success=found.type+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success");
+  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=found.type+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success");
   return response;
  }catch(e){
   if(writeStarted)unknownWrite=true;
+  reconcileClock=writeStarted&&op==="GPS_CLOCK"&&String(e&&e.message||e).startsWith("45 秒");
   status("⚠️ "+String(e&&e.message||e)+
    (writeStarted?"\n寫入結果未確認：保留原單號，先查詢，不要再次送出。":""),writeStarted?"unknown":"error");
  }finally{
   busy=false;
   document.querySelectorAll("button").forEach(b=>{b.disabled=b.dataset&&b.dataset.unavailable==="true"});
+  if(reconcileClock&&pendingWrite&&pendingWrite.operation==="GPS_CLOCK"){
+   // Read the same original once. Never replay GPS_CLOCK or load monthly history.
+   status("尚未收到打卡回覆，正在自動確認原筆結果；請勿再按上班或下班。","busy");
+   await execute("GPS_STATUS");
+   if(pendingWrite&&pendingWrite.operation==="GPS_CLOCK")status("原筆結果仍待確認，請稍後按「重新整理當月紀錄」；不要重打。","unknown");
+  }
  }
 }
 async function refreshStaffClocks(){
@@ -636,5 +643,3 @@ prepareStaffRecords();
 selectStaffPage();
 init();
 })();
-
-
