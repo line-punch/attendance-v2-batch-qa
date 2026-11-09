@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFC 開啟 LINE 測試</title>
+<style>
+body{margin:0;background:#eef4f5;color:#293745;font:18px/1.7 system-ui,sans-serif;padding:24px}main{max-width:480px;margin:24px auto;background:white;border-radius:20px;padding:28px}h1{font-size:26px;margin:0 0 16px}a{display:block;background:#28654e;color:white;text-decoration:none;text-align:center;padding:22px 12px;border-radius:14px;font-weight:700;font-size:24px;margin:26px 0 16px;box-shadow:0 4px #194332}a:active{transform:translateY(3px);box-shadow:0 1px #194332}small{display:block;color:#596a78;font-size:15px}#hint{min-height:3em}a:focus-visible{outline:4px solid #e2ad2c;outline-offset:5px}
+</style>
+<main>
+<h1>NFC 開啟 LINE 測試</h1>
+<p>請按下方按鈕，嘗試開啟手機中的 LINE。</p>
+<a id="open" href="https://liff.line.me/2009482137-XxVOIdbI/?page=query">在 LINE 開啟</a>
+<small id="hint" role="status" aria-live="polite">若詢問是否開啟 LINE，請選「開啟」。</small>
+<small>這次只測試開啟「人資查詢（建置中）」，不會送出打卡。若仍停在 Safari，請回報結果，不必輸入帳密。</small>
+</main>
+<script>
+document.getElementById('open').addEventListener('click',function(){document.getElementById('hint').textContent='已點選，請查看是否切換至 LINE。若沒有切換，先不要登入，請回報畫面。';});
+</script>
+</html>
