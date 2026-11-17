@@ -199,8 +199,12 @@ function requestId(){
  preserveId(value);return value;
 }
 // Use the same half-hour choices for both ends of a partial-day leave.
-const leaveTimeOptions=Array.from({length:48},(_,slot)=>
- String(Math.floor(slot/2)).padStart(2,"0")+":"+(slot%2?"30":"00"));
+const leaveFirstSlot=17; // 08:30
+const leaveLastSlot=35; // 17:30
+const leaveTimeOptions=Array.from({length:leaveLastSlot-leaveFirstSlot+1},(_,index)=>{
+ const slot=leaveFirstSlot+index;
+ return String(Math.floor(slot/2)).padStart(2,"0")+":"+(slot%2?"30":"00");
+});
 for(const [id,initial] of [["fromTime","09:00"],["toTime","11:00"]]){
  const field=$(id);
  for(const time of leaveTimeOptions)field.add(new Option(time,time));
@@ -211,7 +215,7 @@ function requestBody(operation){
   if($("unit").value==="HOURS"){
    const from=$("fromTime").value,to=$("toTime").value;
    if(!leaveTimeOptions.includes(from)||!leaveTimeOptions.includes(to))
-    throw Error("開始與結束時間請選整點或半點。");
+    throw Error("開始與結束時間請選 08:30～17:30 之間的整點或半點。");
    if(to<=from)throw Error("結束時間須晚於開始時間。");
   }
   return {requestId:requestId(),leaveType:$("leaveType").value,
