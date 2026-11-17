@@ -72,8 +72,8 @@ details:has(#endpoint),label:has(#confirmed),label:has(#writeConsent),section:ha
 <label>假別<select id="leaveType"><option>事假</option><option>病假</option><option>特休</option><option>公假</option><option>婚假</option><option>喪假</option></select></label>
 <label>申請單位<select id="unit"><option value="DAY">全天／連續多日</option><option value="HOURS">單日指定時數</option></select></label>
 <div class="pair" id="hourFields" hidden>
-<label>開始時間<input id="fromTime" type="time" value="09:00"></label>
-<label>結束時間<input id="toTime" type="time" value="11:00"></label>
+<label>開始時間<select id="fromTime"></select></label>
+<label>結束時間<select id="toTime"></select></label>
 </div>
 <label>請假原因<textarea id="reason"></textarea></label>
 </div>
@@ -117,4 +117,4 @@ details:has(#endpoint),label:has(#confirmed),label:has(#writeConsent),section:ha
 </main>
 <script src="./config.js?v=20261109simple1"></script>
 <script src="./review-entry.js?v=20261109simple1"></script>
-<script src="./app.js?v=20261109simple1"></script></body></html>
+<script src="./app.js?v=20261117leave30"></script></body></html>

@@ -198,12 +198,27 @@ function requestId(){
   throw Error("請先產生有效的測試申請編號");
  preserveId(value);return value;
 }
+// Use the same half-hour choices for both ends of a partial-day leave.
+const leaveTimeOptions=Array.from({length:48},(_,slot)=>
+ String(Math.floor(slot/2)).padStart(2,"0")+":"+(slot%2?"30":"00"));
+for(const [id,initial] of [["fromTime","09:00"],["toTime","11:00"]]){
+ const field=$(id);
+ for(const time of leaveTimeOptions)field.add(new Option(time,time));
+ field.value=initial;
+}
 function requestBody(operation){
- if(["LEAVE_PREVIEW","LEAVE_REQUEST"].includes(operation))
+ if(["LEAVE_PREVIEW","LEAVE_REQUEST"].includes(operation)){
+  if($("unit").value==="HOURS"){
+   const from=$("fromTime").value,to=$("toTime").value;
+   if(!leaveTimeOptions.includes(from)||!leaveTimeOptions.includes(to))
+    throw Error("開始與結束時間請選整點或半點。");
+   if(to<=from)throw Error("結束時間須晚於開始時間。");
+  }
   return {requestId:requestId(),leaveType:$("leaveType").value,
    startDate:$("start").value,endDate:$("end").value,
    unit:$("unit").value,fromTime:$("fromTime").value,
    toTime:$("toTime").value,reason:$("reason").value};
+ }
  if(operation==="MISSING_REQUEST")
   return {requestId:requestId(),date:$("missingDate").value,
    time:$("missingTime").value,type:$("missingType").value,
