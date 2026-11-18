@@ -16,9 +16,9 @@ function create(){
  function prepare(type,requestId){
   if(pending)throw Error('ORIGINAL_REQUEST_PENDING');
   if(!policy)throw Error('POLICY_REQUIRED');
-  if(!['上班','下班'].includes(type)||!/^[A-Za-z0-9_-]{12,80}$/.test(requestId))throw Error('INPUT_INVALID');
+  if(!['上班','中途離開','返回','下班'].includes(type)||!/^[A-Za-z0-9_-]{12,80}$/.test(requestId))throw Error('INPUT_INVALID');
   if(type==='上班'&&policy.choiceRequired&&!choice)throw Error('SHIFT_REQUIRED');
-  if(type==='下班'&&policy.choiceRequired&&!['STANDARD','EARLY'].includes(policy.todayShift))throw Error('SHIFT_IN_NOT_CONFIRMED');
+  if(type!=='上班'&&policy.choiceRequired&&!['STANDARD','EARLY'].includes(policy.todayShift))throw Error('SHIFT_IN_NOT_CONFIRMED');
   pending={requestId,type,...(type==='上班'&&policy.choiceRequired?{shiftCode:choice}:{})};
   return {...pending};
  }

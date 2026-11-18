@@ -18,7 +18,7 @@
    const nonce=Array.from(crypto.getRandomValues(new Uint8Array(20)),v=>v.toString(16).padStart(2,'0')).join('');
    const frame=document.createElement('iframe'),form=document.createElement('form');frame.name='shift_'+nonce;frame.hidden=true;form.hidden=true;
    form.method='POST';form.action=endpoint.href;form.target=frame.name;form.acceptCharset='UTF-8';
-   const params={nonce,operation,candidateRoute:'shift-qa-v1',payload:JSON.stringify({idToken:liff.getIDToken(),args})};
+   const params={nonce,operation,candidateRoute:'multi-segment-qa-v1',payload:JSON.stringify({idToken:liff.getIDToken(),args})};
    for(const [key,value] of Object.entries(params)){const input=document.createElement('input');input.type='hidden';input.name=key;input.value=value;form.append(input);}
    let timer,done=false;
    function finish(error,value){if(done)return;done=true;clearTimeout(timer);window.removeEventListener('message',receive);form.remove();frame.remove();if(error)reject(error);else resolve(value);}
