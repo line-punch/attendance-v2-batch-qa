@@ -32,7 +32,14 @@ async function reviewFromButton(decision){
  }
  return execute("HR_REVIEW",{write:true,decision});
 }
-const writeButtons=new Set(["clockIn","clockOut","submitLeave","submitMissing","hrApprove","hrReject","newId","newLeave","newMissing"]);
+const punchButtons=[["clockIn","上班"],["clockLeave","中途離開"],["clockOut","下班"],["clockReturn","返回"]];
+const clockButtons=[...punchButtons.map(([id])=>id),"confirmMissingClock"];
+function applyStaffClockButtons(){
+ const policy=staffShiftPolicy?.date===localToday()?staffShiftPolicy:null;
+ for(const [id,type] of punchButtons)
+  $(id).disabled=busy||uiBusy||unknownWrite||!loggedIn||!policy?.allowedClockTypes.includes(type);
+}
+const writeButtons=new Set([...clockButtons,"submitLeave","submitMissing","hrApprove","hrReject","newId","newLeave","newMissing"]);
 let confirmedForms={};
 try{confirmedForms=JSON.parse(sessionStorage.getItem("yc_staff_v2_confirmed_forms")||"{}")||{};}catch(_){}
 const formConfig={LEAVE_REQUEST:["submitLeave","leaveReceipt","leaveFields"],MISSING_REQUEST:["submitMissing","missingReceipt","missingFields"]};
@@ -57,7 +64,7 @@ function onAction(id,handler){
   const previous=buttons.map(b=>b.disabled);
   uiBusy=true;
   buttons.forEach(b=>{b.disabled=true;});
-  const shortProgress=["clockIn","clockOut"].includes(id)?"打卡中…":["submitLeave","submitMissing"].includes(id)?"申請上傳中…":"處理中…";
+  const shortProgress=clockButtons.includes(id)?"打卡中…":["submitLeave","submitMissing"].includes(id)?"申請上傳中…":"處理中…";
   button.textContent=shortProgress;
   button.setAttribute("aria-busy","true");button.setAttribute("data-state","busy");
   const progress=shortProgress;
@@ -71,6 +78,7 @@ function onAction(id,handler){
    button.setAttribute("aria-busy","false");button.setAttribute("data-state","idle");
    buttons.forEach((b,i)=>{b.disabled=(!writeButtons.has(b.id)&&previous[i])||!!(b.dataset&&b.dataset.unavailable==="true")||
     (unknownWrite&&writeButtons.has(b.id));});
+   applyStaffClockButtons();
   }
  });
 }
@@ -79,6 +87,7 @@ try{
  if(saved)pendingWrite=JSON.parse(saved);
 }catch(_){pendingWrite={operation:"UNKNOWN",requestId:""};}
 let unknownWrite=!!pendingWrite;
+let missingClockConfirmation=null;
 let clockType=pendingWrite&&pendingWrite.type||"上班";
 const pages=["Clock","Leave","Missing","Hr"];
 for(const page of pages){
@@ -106,6 +115,14 @@ function staffReplyMessage(response,operation){
   SHIFT_IN_NOT_CONFIRMED:"上班班別尚未確認，請聯絡人資核對；本次尚未寫入。",
   SHIFT_NOT_ALLOWED:"此帳號未開放選擇早班；本次尚未寫入。",
   SHIFT_ROLLOUT_PAUSED:"選班功能暫停新增上班卡，請聯絡人資；下班仍沿用原班別。",
+  CLOCK_DAY_CLOSED:"今天已打最後一次下班卡，如有誤打請聯絡人資。",
+  CLOCK_ALREADY_STARTED:"今天已經開始打卡。請依實際情況選中途離開或返回。",
+  CLOCK_START_REQUIRED:"今天尚無打卡紀錄，請先打上班或聯絡人資。",
+  CLOCK_LEAVE_REQUIRED:"請先打中途離開卡，再打中途返回。",
+  CLOCK_RETURN_REQUIRED:"請先打中途返回卡，再打下一次中途離開。",
+  CLOCK_MISSING_CONFIRM:"上一段有漏卡。確認後可先記錄本次時間，缺少的那一筆再申請補卡。",
+  CLOCK_STATE_CHANGED:"紀錄已變更，請重新確認打卡。",
+  CLOCK_ORDER_INVALID:"這次時間須晚於最後一筆打卡，請先查看紀錄。",
   ALREADY_CLOCKED:'今天已有這類打卡，請查看當月紀錄，不必重打。',
   SAME_MINUTE:'這一分鐘已有打卡，請先查看當月紀錄，不要連續重按。',
   OUT_OF_RANGE:'目前定位超出打卡地點 50 公尺範圍，本次未寫入。',
@@ -260,7 +277,7 @@ function renderClocks(result){
   target.textContent="打卡紀錄回覆格式錯誤，請重新查詢。";return;
  }
  const days=result.days.filter(day=>day&&typeof day.date==="string"&&
-  day.date.startsWith(result.month+"-")&&(day.clockIn||day.clockOut))
+  day.date.startsWith(result.month+"-")&&(day.clockIn||day.clockOut||day.segments?.length))
   .sort((a,b)=>a.date.localeCompare(b.date));
  if(!days.length){
   const tr=document.createElement("tr"),td=document.createElement("td");
@@ -272,6 +289,18 @@ function renderClocks(result){
   const tr=document.createElement("tr");
   for(const value of [date,day.clockIn||"",day.clockOut||""]){
    const td=document.createElement("td");td.textContent=String(value);tr.appendChild(td);
+  }
+  const segments=day.segments;
+  if(Array.isArray(segments)&&(segments.length>1||segments.some(part=>!part.start||!part.end))){
+   const details=document.createElement("details"),summary=document.createElement("summary");
+   summary.textContent="出勤時段";
+   details.appendChild(summary);
+   segments.forEach((part,i)=>{
+    const line=document.createElement("div");
+    line.textContent="第 "+(i+1)+" 段："+(part.start||"—")+"～"+(part.end||"—");
+    details.appendChild(line);
+   });
+   tr.cells[0].appendChild(details);
   }
   target.appendChild(tr);
  }
@@ -346,18 +375,21 @@ function post(url,op,idToken,args){
 
 let staffShiftPolicy=null;
 async function loadStaffShiftPolicy(){
+ staffShiftPolicy=null;applyStaffClockButtons();
  const reply=await post(validatedEndpoint($("endpoint").value),"CLOCK_POLICY",verifiedToken(),{});
  const p=reply&&reply.ok&&reply.result;
  if(!p||p.ok!==true||p.readOnly!==true||typeof p.choiceRequired!=="boolean"||!/^\d{4}-\d{2}-\d{2}$/.test(p.date)||JSON.stringify(p.shifts)!==JSON.stringify(p.choiceRequired?["STANDARD","EARLY"]:["STANDARD"]))throw Error("班別規則尚未確認，請稍後重新登入；尚未送出打卡。");
- staffShiftPolicy=p;$("staffShiftBox").hidden=!p.choiceRequired||p.clockInRecorded;
+ if(!Array.isArray(p.allowedClockTypes)||p.allowedClockTypes.some(type=>!punchButtons.some(([,kind])=>kind===type)))throw Error("暫時無法確認今日打卡順序，請重新整理當月紀錄。");
+ staffShiftPolicy=p;applyStaffClockButtons();$("staffShiftBox").hidden=!p.choiceRequired||p.clockInRecorded;
  $("staffShift").disabled=unknownWrite;
  $("staffShiftSaved").textContent=p.choiceRequired&&p.clockInRecorded?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[p.todayShift]||"待核對，請聯絡人資"):"";
  return p;
 }
 async function staffShiftArgs(type){
  const p=staffShiftPolicy&&staffShiftPolicy.date===localToday()?staffShiftPolicy:await loadStaffShiftPolicy();
+ if(!p.allowedClockTypes.includes(type))throw Error("此操作目前不可用，請依今日打卡順序操作。");
  if(!p.choiceRequired)return {};
- if(type==="下班"){
+ if(type!=="上班"){
   if(!["EARLY","STANDARD"].includes(p.todayShift))throw Error("上班班別尚未確認，請聯絡人資；尚未送出下班打卡。");
   return {};
  }
@@ -365,7 +397,7 @@ async function staffShiftArgs(type){
  return {shiftCode:$("staffShift").value};
 }
 
-async function execute(op,{write=false,decision=null}={}){
+async function execute(op,{write=false,decision=null,missingAfter=undefined}={}){
  if(busy)return;
  let writeStarted=false,reconcileClock=false;
  try{
@@ -391,6 +423,7 @@ async function execute(op,{write=false,decision=null}={}){
   }:op==="GPS_CLOCK"?{requestId:requestId(),type:clockType}:requestBody(op);
   if(op==="GPS_CLOCK"){
    args={...args,...await staffShiftArgs(clockType)};
+   if(missingAfter!==undefined)args.missingAfter=missingAfter;
    busy=true;document.querySelectorAll("button").forEach(b=>{b.disabled=true});
    status("正在取得新的 GPS 定位，尚未送出打卡…","busy","打卡中…");
    args={...args,...await obtainGPS()};
@@ -413,6 +446,12 @@ async function execute(op,{write=false,decision=null}={}){
    if(write&&(response.code==="UNKNOWN"||response.persisted===null))
     unknownWrite=true;
    else if(write&&response.persisted===false)rememberWrite(null);
+   if(op==="GPS_CLOCK"&&response.reason==="CLOCK_MISSING_CONFIRM"&&response.persisted===false&&typeof response.missingAfter==="string"){
+    missingClockConfirmation={type:args.type,missingAfter:response.missingAfter};
+    const confirmButton=$("confirmMissingClock");
+    confirmButton.textContent="確認漏打，記錄本次「"+args.type+"」";
+    confirmButton.hidden=false;
+   }
    const messages={ALREADY_CLOCKED:"今天已有同類型的正常打卡，請查看當月紀錄。",
     OUT_OF_RANGE:"目前定位超出打卡地點 50 公尺範圍，本次未寫入。",
     GPS_ACCURACY:"定位精度不足，本次未寫入，請確認精確位置與定位訊號。",
@@ -437,9 +476,12 @@ async function execute(op,{write=false,decision=null}={}){
    // A confirmed write must not wait for a second network request to display success.
    const saved=response.result&&response.result.request;
    if(saved&&saved.date===localToday()&&staffShiftPolicy&&staffShiftPolicy.date===saved.date&&["STANDARD","EARLY"].includes(saved.shiftCode)){
-    staffShiftPolicy={...staffShiftPolicy,todayShift:saved.shiftCode,clockInRecorded:true};
+    if(op==="GPS_CLOCK"&&!response.result.duplicate){
+     const allowedClockTypes=saved.type==="下班"?[]:saved.type==="中途離開"?["返回","下班"]:["中途離開","下班"];
+     staffShiftPolicy={...staffShiftPolicy,todayShift:saved.shiftCode,clockInRecorded:true,allowedClockTypes};
+    }else staffShiftPolicy=null;
     $("staffShiftBox").hidden=true;
-    $("staffShiftSaved").textContent=staffShiftPolicy.choiceRequired?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[saved.shiftCode]):"";
+    $("staffShiftSaved").textContent=staffShiftPolicy?.choiceRequired?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[saved.shiftCode]):"";
    }else staffShiftPolicy=null;
   }
   const found=response.result&&response.result.request;
@@ -480,7 +522,7 @@ async function execute(op,{write=false,decision=null}={}){
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
   if((write&&found)||["MY_CLOCKS","MY_LEAVES","MY_MISSING"].includes(op))collapseStaffRecords(op);
-  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=found.type+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"上傳成功":null);
+  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=(found.type==="返回"?"中途返回":found.type)+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"上傳成功":null);
   return response;
  }catch(e){
   if(writeStarted)unknownWrite=true;
@@ -490,6 +532,7 @@ async function execute(op,{write=false,decision=null}={}){
  }finally{
   busy=false;
   document.querySelectorAll("button").forEach(b=>{b.disabled=b.dataset&&b.dataset.unavailable==="true"});
+  applyStaffClockButtons();
   if(reconcileClock&&pendingWrite&&pendingWrite.operation==="GPS_CLOCK"){
    // Read the same original once. Never replay GPS_CLOCK or load monthly history.
    status("尚未收到打卡回覆，正在自動確認原筆結果；請勿再按上班或下班。","busy","正在確認，請勿重複按…");
@@ -507,6 +550,7 @@ async function refreshStaffClocks(){
   if(found&&found.requestId===previous.requestId)confirmed=found;
  }
  const history=await execute("MY_CLOCKS");
+ if(history?.ok)await loadStaffShiftPolicy();
  if(previous){
   if(confirmed&&!pendingWrite){
    status("已確認剛才"+confirmed.type+"打卡成功："+confirmed.time+
@@ -585,7 +629,8 @@ async function init(){
   prepareReviewEntry();
   if(loggedIn&&!$("pageClock").hidden)await loadStaffShiftPolicy();
   if(new URL(window.location.href).searchParams.get("review")==="1"){$("reviewPanel").open=true;$("hrPending").hidden=false;if(loggedIn)await execute("HR_PENDING");}else if(!reviewEntry){const pageArg=new URL(window.location.href).searchParams.get("page")||"clock";const target={clock:"Clock",leave:"Leave",miss:"Missing",missing:"Missing",query:"Hr",hr:"Hr"}[pageArg]||"Clock";for(const name of pages){$("page"+name).hidden=name!==target;$("nav"+name).setAttribute("aria-pressed",String(name===target));}}
- }catch(e){loggedIn=false;$("identity").textContent=String(e.message||e)}
+ }catch(e){staffShiftPolicy=null;$("identity").textContent=String(e.message||e);status(String(e.message||e),"error")}
+ finally{applyStaffClockButtons();}
 }
 onAction("login",async()=>{
  if(typeof liff!=="undefined"&&(!loggedIn||!liff.isLoggedIn())){
@@ -650,14 +695,20 @@ onAction("viewSubmittedMonth",async()=>{
  $(leave?"month":"missingMonth").value=submittedMonth.month;
  await refreshStaffApplications(submittedMonth.operation);
 });
-for(const [id,type] of [["clockIn","上班"],["clockOut","下班"]]){
- onAction(id,async()=>{
-  if(busy||unknownWrite){status("請先核對上一筆操作結果，不要再次送出。");return;}
-  try{clockType=type;const id="V2_GPS_"+freshHex(16);$("requestId").value=id;preserveId(id);}
-  catch(e){status(e.message);return;}
-  return execute("GPS_CLOCK",{write:true});
- });
+function punchClock(type,missingAfter){
+ if(busy||unknownWrite){status("請先核對上一筆操作結果，不要再次送出。");return;}
+ missingClockConfirmation=null;
+ $("confirmMissingClock").hidden=true;
+ try{clockType=type;const id="V2_GPS_"+freshHex(16);$("requestId").value=id;preserveId(id);}
+ catch(e){status(e.message);return;}
+ return execute("GPS_CLOCK",{write:true,missingAfter});
 }
+for(const [id,type] of punchButtons){
+ onAction(id,()=>punchClock(type));
+}
+onAction("confirmMissingClock",()=>{
+ if(missingClockConfirmation)return punchClock(missingClockConfirmation.type,missingClockConfirmation.missingAfter);
+});
 if(unknownWrite)document.querySelectorAll("button").forEach(b=>{if(writeButtons.has(b.id))b.disabled=true;});
 prepareStaffRecords();
 selectStaffPage();
