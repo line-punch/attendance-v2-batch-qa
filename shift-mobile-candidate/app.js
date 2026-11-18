@@ -1,6 +1,5 @@
 'use strict';
-// Transport is deliberately not configured: no accidental access to the live service.
-// A separate authenticated QA adapter must expose login(), call(op,args), gps().
+// This page uses the isolated TEST001 attendance service.
 (function(){
  const $=id=>document.getElementById(id),api=window.YCShiftQAService;
  const state=window.YCShiftClientState.create();let busy=false,ready=false;
@@ -9,7 +8,23 @@
  function message(t){$('status').textContent=t;}
  function controls(){for(const id of ['login','clockIn','clockLeave','clockReturn','clockOut','refresh','confirmMissingClock'])$(id).disabled=busy||!ready||!!uncertain&&id!=='refresh';$('shift').disabled=busy||!!uncertain;}
  function savePending(v){uncertain=v;try{if(v)sessionStorage.setItem(key,JSON.stringify(v));else sessionStorage.removeItem(key);}catch(_){if(v)throw Error('無法保存核對編號，尚未送出；請保留畫面，不要重送。');}controls();}
- async function policy(){const p=await api.call('CLOCK_POLICY',{});state.setPolicy(p);$('shiftBox').hidden=!p.choiceRequired||p.clockInRecorded; $('savedShift').textContent=p.clockInRecorded?'當日已保存班別：'+({EARLY:'早班',STANDARD:'正常班'}[p.todayShift]||'待核對'):'';}
+ async function policy(){
+  const p=await api.call('CLOCK_POLICY',{});
+  if(!p.ok){
+   const labels={
+    AUTH_REQUIRED:'測試帳號驗證未通過，請關閉測試頁，再從 LINE 開啟。',
+    FEATURE_DISABLED:'測試後端尚未開放選班。',
+    INVALID_FORM:'測試頁與後端版本不一致，請關閉測試頁後重新開啟。'
+   };
+   throw Error((labels[p.code]||'目前無法讀取測試選班設定。')+' 本次未送出打卡。'+(p.code?'（'+p.code+'）':''));
+  }
+  try{state.setPolicy(p);}catch(e){
+   if(e.message!=='POLICY_INVALID')throw e;
+   throw Error('測試後端回傳的選班設定格式有誤，本次未送出打卡。');
+  }
+  $('shiftBox').hidden=!p.choiceRequired||p.clockInRecorded;
+  $('savedShift').textContent=p.clockInRecorded?'當日已保存班別：'+({EARLY:'早班',STANDARD:'正常班'}[p.todayShift]||'待核對'):'';
+ }
  async function run(fn){if(busy)return;busy=true;controls();try{await fn();}catch(e){message(String(e.message||e));}finally{busy=false;controls();}}
  async function clock(type,missingAfter){await run(async()=>{
   missingConfirmation=null;$('confirmMissingClock').hidden=true;
@@ -33,7 +48,9 @@
    }
    throw Error('結果尚未確認，請重新整理核對，暫勿重送。');
   }
-  state.settle(reply.request);savePending(null);message('隔離測試已保存：'+type+' '+reply.request.time);await policy();
+  state.settle(reply.request);savePending(null);const saved='隔離測試已保存：'+type+' '+reply.request.time;
+  message(saved);
+  try{await policy();}catch(_){message(saved+'。選班設定更新失敗，請稍後重新整理紀錄。');}
  });}
  $('login').onclick=()=>run(async()=>{await api.login();await policy();message(uncertain?'上一筆結果未確認，請重新整理核對。':'隔離登入及選班規則已確認。');});
  for(const [id,type] of [['clockIn','上班'],['clockLeave','中途離開'],['clockReturn','返回'],['clockOut','下班']])$(id).onclick=()=>clock(type);
