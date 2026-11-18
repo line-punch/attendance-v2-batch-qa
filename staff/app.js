@@ -36,8 +36,19 @@ const punchButtons=[["clockIn","上班"],["clockLeave","中途離開"],["clockOu
 const clockButtons=[...punchButtons.map(([id])=>id),"confirmMissingClock"];
 function applyStaffClockButtons(){
  const policy=staffShiftPolicy?.date===localToday()?staffShiftPolicy:null;
+ const available=policy?.allowedClockTypes;
  for(const [id,type] of punchButtons)
-  $(id).disabled=busy||uiBusy||unknownWrite||!loggedIn||!policy?.allowedClockTypes.includes(type);
+  $(id).disabled=busy||uiBusy||unknownWrite||!loggedIn||!available?.includes(type);
+ let message;
+ if(!loggedIn)message="請先確認 LINE 登入，才能查詢今天可用的打卡操作。";
+ else if(unknownWrite)message="上一筆操作結果待確認，請回到該功能重新整理紀錄。";
+ else if(!available)message="今天的打卡狀態尚未確認，可按「重新整理當月紀錄」再查一次。";
+ else if(available.includes("上班"))message="請先打「上班」，其他打卡按鈕目前無法使用。";
+ else if(available.includes("返回"))message="已打中途離開，回公司後請按「中途返回」。返回後才能再次打中途離開；若漏打返回，下班時會提示確認。";
+ else if(available.length)message="外出請按「中途離開」，出勤結束請按「下班」。離開後才能打中途返回。";
+ else message="今天的打卡已結束，四顆按鈕今天都無法再使用。";
+ const hint=$("clockActionHint");
+ if(hint.textContent!==message)hint.textContent=message;
 }
 const writeButtons=new Set([...clockButtons,"submitLeave","submitMissing","hrApprove","hrReject","newId","newLeave","newMissing"]);
 let confirmedForms={};
@@ -623,7 +634,7 @@ async function init(){
   await liff.init({liffId:LIFF_ID});
   selectStaffPage();
   loggedIn=liff.isLoggedIn()&&!!liff.getIDToken();
-  if(loggedIn)status(unknownWrite?"上次送出結果未確認，請按重新整理當月紀錄核對，暫勿重送。":"LINE 登入已確認，可直接操作。",unknownWrite?"unknown":"success");
+  if(loggedIn)status(unknownWrite?"上次送出結果未確認，請按重新整理當月紀錄核對，暫勿重送。":"LINE 登入已確認，請依打卡區提示操作。",unknownWrite?"unknown":"success");
   $("identity").textContent=loggedIn?"已登入 LINE 帳號；仍需伺服器核對 員工綁定":
    "請按登入，完成 LINE 登入";
   prepareReviewEntry();
