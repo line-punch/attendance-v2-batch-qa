@@ -44,7 +44,7 @@ function staffPunchBlockReason(type){
  if(!available)return "今天的打卡狀態尚未確認，請按「重新整理當月紀錄」。";
  if(available.includes(type))return "";
  if(!available.length)return "今天的打卡已結束。";
- if(available.includes("上班"))return "請先打「上班」。";
+ if(available.includes("上班"))return type==="下班"?"請先打「上班」。如果忘了打卡，送出當天的「上班」補打卡申請後即可打下班。":"請先打「上班」。";
  if(type==="上班")return "今天已打過「上班」。";
  if(type==="返回")return "請先打「中途離開」。";
  return "請先打「中途返回」，才能再次中途離開。";
@@ -60,6 +60,7 @@ function applyStaffClockButtons(){
  if(!loggedIn)message="請先確認 LINE 登入，才能查詢今天可用的打卡操作。";
  else if(unknownWrite)message="上一筆操作結果待確認，請回到該功能重新整理紀錄。";
  else if(!available)message="今天的打卡狀態尚未確認，可按「重新整理當月紀錄」再查一次。";
+ else if(staffShiftPolicy?.hasClockInRequest&&available.includes("下班"))message="今天已有上班補打卡申請，可以先打「下班」，補卡仍會照常審核。";
  else if(available.includes("上班"))message="請先打「上班」，其他打卡按鈕目前無法使用。";
  else if(available.includes("返回"))message="已打中途離開，回公司後請按「中途返回」。返回後才能再次打中途離開；若漏打返回，下班時會提示確認。";
  else if(available.length)message="外出請按「中途離開」，出勤結束請按「下班」。離開後才能打中途返回。";
@@ -415,7 +416,7 @@ async function loadStaffShiftPolicy(){
  const p=reply&&reply.ok&&reply.result;
  if(!p||p.ok!==true||p.readOnly!==true||typeof p.choiceRequired!=="boolean"||!/^\d{4}-\d{2}-\d{2}$/.test(p.date)||JSON.stringify(p.shifts)!==JSON.stringify(p.choiceRequired?["STANDARD","EARLY"]:["STANDARD"]))throw Error("班別規則尚未確認，請稍後重新登入；尚未送出打卡。");
  if(!Array.isArray(p.allowedClockTypes)||p.allowedClockTypes.some(type=>!punchButtons.some(([,kind])=>kind===type)))throw Error("暫時無法確認今日打卡順序，請重新整理當月紀錄。");
- staffShiftPolicy=p;applyStaffClockButtons();$("staffShiftBox").hidden=!p.choiceRequired||p.clockInRecorded;
+ staffShiftPolicy=p;applyStaffClockButtons();$("staffShiftBox").hidden=!p.choiceRequired||p.clockInRecorded||!p.allowedClockTypes.length;
  $("staffShift").disabled=unknownWrite;
  $("staffShiftSaved").textContent=p.choiceRequired&&p.clockInRecorded?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[p.todayShift]||"待核對，請聯絡人資"):"";
  return p;
@@ -424,11 +425,11 @@ async function staffShiftArgs(type){
  const p=staffShiftPolicy&&staffShiftPolicy.date===localToday()?staffShiftPolicy:await loadStaffShiftPolicy();
  if(!p.allowedClockTypes.includes(type))throw Error("此操作目前不可用，請依今日打卡順序操作。");
  if(!p.choiceRequired)return {};
- if(type!=="上班"){
+ if(type!=="上班"&&!(type==="下班"&&p.hasClockInRequest&&!p.clockInRecorded)){
   if(!["EARLY","STANDARD"].includes(p.todayShift))throw Error("上班班別尚未確認，請聯絡人資；尚未送出下班打卡。");
   return {};
  }
- if(!["EARLY","STANDARD"].includes($("staffShift").value))throw Error("請先選擇主管通知的今日班別。");
+ if(!["EARLY","STANDARD"].includes($("staffShift").value))throw Error("請先選擇主管通知的今日班別，再打卡。");
  return {shiftCode:$("staffShift").value};
 }
 
@@ -513,7 +514,7 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
    if(saved&&saved.date===localToday()&&staffShiftPolicy&&staffShiftPolicy.date===saved.date&&["STANDARD","EARLY"].includes(saved.shiftCode)){
     if(op==="GPS_CLOCK"&&!response.result.duplicate){
      const allowedClockTypes=saved.type==="下班"?[]:saved.type==="中途離開"?["返回","下班"]:["中途離開","下班"];
-     staffShiftPolicy={...staffShiftPolicy,todayShift:saved.shiftCode,clockInRecorded:true,allowedClockTypes};
+     staffShiftPolicy={...staffShiftPolicy,todayShift:saved.shiftCode,clockInRecorded:staffShiftPolicy.clockInRecorded||saved.type==="上班",hasClockInRequest:false,allowedClockTypes};
     }else staffShiftPolicy=null;
     $("staffShiftBox").hidden=true;
     $("staffShiftSaved").textContent=staffShiftPolicy?.choiceRequired?"今日班別："+({EARLY:"早班 07:30～16:30",STANDARD:"正常班 08:30～17:30"}[saved.shiftCode]):"";
