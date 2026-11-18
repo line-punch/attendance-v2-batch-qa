@@ -34,11 +34,28 @@ async function reviewFromButton(decision){
 }
 const punchButtons=[["clockIn","上班"],["clockLeave","中途離開"],["clockOut","下班"],["clockReturn","返回"]];
 const clockButtons=[...punchButtons.map(([id])=>id),"confirmMissingClock"];
+function availableStaffPunches(){
+ return staffShiftPolicy?.date===localToday()?staffShiftPolicy.allowedClockTypes:null;
+}
+function staffPunchBlockReason(type){
+ if(!loggedIn)return "請先確認 LINE 登入。";
+ if(unknownWrite)return "上一筆操作結果待確認，請回到該功能重新整理紀錄。";
+ const available=availableStaffPunches();
+ if(!available)return "今天的打卡狀態尚未確認，請按「重新整理當月紀錄」。";
+ if(available.includes(type))return "";
+ if(!available.length)return "今天的打卡已結束。";
+ if(available.includes("上班"))return "請先打「上班」。";
+ if(type==="上班")return "今天已打過「上班」。";
+ if(type==="返回")return "請先打「中途離開」。";
+ return "請先打「中途返回」，才能再次中途離開。";
+}
 function applyStaffClockButtons(){
- const policy=staffShiftPolicy?.date===localToday()?staffShiftPolicy:null;
- const available=policy?.allowedClockTypes;
- for(const [id,type] of punchButtons)
-  $(id).disabled=busy||uiBusy||unknownWrite||!loggedIn||!available?.includes(type);
+ const available=availableStaffPunches();
+ for(const [id,type] of punchButtons){
+  const button=$(id);
+  button.disabled=busy||uiBusy;
+  button.setAttribute("aria-disabled",String(button.disabled||!!staffPunchBlockReason(type)));
+ }
  let message;
  if(!loggedIn)message="請先確認 LINE 登入，才能查詢今天可用的打卡操作。";
  else if(unknownWrite)message="上一筆操作結果待確認，請回到該功能重新整理紀錄。";
@@ -66,10 +83,17 @@ function confirmForm(op,id){
  $(button).textContent="已送出（請查看紀錄）";
  $(receipt).textContent="這筆申請已送出。編號："+id+"。另填一筆請按「新增申請」。";
 }
-function onAction(id,handler){
+function onAction(id,handler,blockReason){
  const button=$(id);
  button.addEventListener("click",async()=>{
   if(uiBusy||busy)return;
+  const reason=blockReason?.();
+  if(reason){
+   $("clockActionHint").textContent="「"+button.textContent+"」目前不能打卡。"+reason;
+   if(!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    button.animate?.([{transform:"translateY(3px)"},{transform:"translateY(0)"}],{duration:160,easing:"ease-out"});
+   return;
+  }
   const label=button.textContent;
   const buttons=Array.from(document.querySelectorAll("button"));
   const previous=buttons.map(b=>b.disabled);
@@ -715,7 +739,7 @@ function punchClock(type,missingAfter){
  return execute("GPS_CLOCK",{write:true,missingAfter});
 }
 for(const [id,type] of punchButtons){
- onAction(id,()=>punchClock(type));
+ onAction(id,()=>punchClock(type),()=>staffPunchBlockReason(type));
 }
 onAction("confirmMissingClock",()=>{
  if(missingClockConfirmation)return punchClock(missingClockConfirmation.type,missingClockConfirmation.missingAfter);
@@ -723,5 +747,6 @@ onAction("confirmMissingClock",()=>{
 if(unknownWrite)document.querySelectorAll("button").forEach(b=>{if(writeButtons.has(b.id))b.disabled=true;});
 prepareStaffRecords();
 selectStaffPage();
+applyStaffClockButtons();
 init();
 })();
