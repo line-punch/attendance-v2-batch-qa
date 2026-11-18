@@ -33,6 +33,7 @@
   const id='QA_MULTI_'+Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
   const original=state.prepare(type,id);message('正在定位，尚未送出…');
   let gps;try{gps=await api.gps();}catch(e){state.clearUnwritten(id);throw Error('定位未完成，尚未送出打卡。');}
+  const ageOnPhone=Number.isFinite(gps.capturedAt)?Math.round((Date.now()-gps.capturedAt)/1000):null;
   savePending(original);message('正在送出隔離測試，請勿重複點擊。');
   let reply;try{reply=await api.call('GPS_CLOCK',{...original,...gps,...(missingAfter===undefined?{}:{missingAfter})});}catch(e){throw Error('結果尚未確認，請重新整理核對，暫勿重送。');}
   if(!reply.ok){
@@ -42,6 +43,12 @@
      missingConfirmation={type,after:reply.missingAfter};
      $('confirmMissingClock').hidden=false;
      throw Error('上一段有漏卡。確認後可以先記下本次時間。');
+    }
+    if(reply.code==='GPS_EXPIRED'){
+     const serverOffset=reply.gpsTiming?.relativeToServerSeconds;
+     const phoneAge=Number.isFinite(ageOnPhone)?Math.abs(ageOnPhone)+' 秒'+(ageOnPhone<0?'後':'前'):'時間格式無效';
+     const serverAge=Number.isFinite(serverOffset)?Math.abs(serverOffset)+' 秒'+(serverOffset>0?'後':'前'):'未取得';
+     throw Error('定位時間未通過驗證，這次打卡未寫入。手機判定定位取得於 '+phoneAge+'，伺服器判定 '+serverAge+'。');
     }
     const labels={SAME_MINUTE:'同一分鐘已有打卡，請隔一分鐘再按下一顆。',OUT_OF_RANGE:'目前位置超出測試打卡範圍。',CLOCK_DAY_CLOSED:'測試日已完成下班打卡。',CLOCK_ALREADY_STARTED:'今天已打上班卡。'};
     throw Error(labels[reply.code]||'測試打卡未寫入：'+String(reply.code||'UNKNOWN'));
