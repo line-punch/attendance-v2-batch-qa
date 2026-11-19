@@ -30,7 +30,7 @@ window.startAttendanceMaintenance=async function(){
    document.body.append(frame,form);form.submit();
   });
  }
- function message(code,reason){return ({MAINT_ADMIN_REQUIRED:'目前這個 LINE 帳號尚未取得出勤維護權限。請由系統負責人設定專用管理者。',MAINT_AUTH:'無法核對登入身分，請重新登入。',MAINT_STALE:'原始資料已更新，請重新查詢並預覽。',MAINT_PREVIEW_REQUIRED:'預覽已失效，請重新預覽。',MAINT_REASON:'請填寫至少3字的更正原因。',MAINT_START_REQUIRED:'缺少上班紀錄，請先補齊上班時間。',MAINT_RETURN_ORDER:'沒有相對應的中途離開，不能補登中途返回。',MAINT_LEAVE_ORDER:'中途離開的前一筆必須是上班或中途返回。',MAINT_DUPLICATE_IN:'同一天只能有一筆有效上班。',MAINT_AFTER_END:'下班後不能再有當日出勤，請核對順序。',MAINT_SAME_TIME:'有兩筆出勤時間相同，請核對。',MAINT_FUTURE_TIME:'不能補登尚未發生的未來時間。',MAINT_DAY:'請選擇今天或以前的有效日期。',MAINT_EMPTY_DAY:'至少保留一筆有效出勤紀錄。',MAINT_DISABLED:'出勤維護尚未啟用。',MAINT_ID_CONFLICT:'這個保存編號已有不同內容，請先查核上次結果。',MAINT_SAVE_UNKNOWN:'保存結果尚未確認，請查核上次保存結果。'})[reason||code]||'目前無法完成操作，請稍後重試；保存後結果不明時請先查核。';}
+ function message(code,reason){return ({MAINT_ADMIN_REQUIRED:'目前這個 LINE 帳號尚未取得出勤維護權限。請由系統負責人設定專用管理者。',MAINT_AUTH:'無法核對登入身分，請重新登入。',MAINT_STALE:'原始資料已更新，請重新查詢並預覽。',MAINT_PREVIEW_REQUIRED:'預覽已失效，請重新預覽。',MAINT_REASON:'請填寫至少3字的更正原因。',MAINT_START_REQUIRED:'缺少上班紀錄，請先補齊上班時間。',MAINT_RETURN_REQUIRED:'中途離開後缺少返回，請先核對並補齊，才能保存下班。',MAINT_RETURN_ORDER:'沒有相對應的中途離開，不能補登中途返回。',MAINT_LEAVE_ORDER:'中途離開的前一筆必須是上班或中途返回。',MAINT_DUPLICATE_IN:'同一天只能有一筆有效上班。',MAINT_AFTER_END:'下班後不能再有當日出勤，請核對順序。',MAINT_SAME_TIME:'有兩筆出勤時間相同，請核對。',MAINT_FUTURE_TIME:'不能補登尚未發生的未來時間。',MAINT_DAY:'請選擇今天或以前的有效日期。',MAINT_EMPTY_DAY:'至少保留一筆有效出勤紀錄。',MAINT_DISABLED:'出勤維護尚未啟用。',MAINT_ID_CONFLICT:'這個保存編號已有不同內容，請先查核上次結果。',MAINT_SAVE_UNKNOWN:'保存結果尚未確認，請查核上次保存結果。'})[reason||code]||'目前無法完成操作，請稍後重試；保存後結果不明時請先查核。';}
  async function run(button,fn){if(busy)return;busy=true;const old=button.textContent;button.disabled=true;button.setAttribute('aria-busy','true');button.textContent='處理中…';root.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=true);try{await fn();}catch(e){tell(e.message,'error');}finally{busy=false;button.disabled=false;button.removeAttribute('aria-busy');button.textContent=old;root.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=!!pending);$('maintMakePreview').disabled=!!pending;}}
  function manualRow(m={type:'返回',time:''}){
   const row=el('div',undefined,{className:'maintManual'}),type=typeSelect(m.type),time=el('input',undefined,{type:'time',step:'60',value:m.time}),remove=el('button','移除',{type:'button'});
@@ -44,7 +44,7 @@ window.startAttendanceMaintenance=async function(){
    const edit=day.edits.find(e=>e.requestId===original.requestId),value=edit||original,row=el('tr');row.dataset.requestId=original.requestId;
    const sel=typeSelect(value.type),time=el('input',undefined,{type:'time',step:'1',value:value.time}),voided=el('input',undefined,{type:'checkbox',checked:!!edit?.void});
    sel.setAttribute('aria-label','更正後打卡類型');time.setAttribute('aria-label','更正後時間');voided.setAttribute('aria-label','作廢此筆');
-   if(suggest&&original.type==='下班')sel.value='中途離開';
+   if(suggest&&access.defaultCase.suggestion.outToLeave&&original.type==='下班')sel.value='中途離開';if(suggest&&access.defaultCase.suggestion.voidRequestIds?.includes(original.requestId))voided.checked=true;
    row.append(el('td',original.type+' '+original.time+'（'+original.source+'）'),el('td'),el('td'),el('td'));row.children[1].append(sel);row.children[2].append(time);row.children[3].append(voided);tbody.append(row);
   }
   if(!day.originals.length){const tr=el('tr');tr.append(el('td','當日沒有正常打卡紀錄。',{colSpan:4}));tbody.append(tr);}
@@ -70,6 +70,7 @@ window.startAttendanceMaintenance=async function(){
   if(!liff.isLoggedIn()){if(interactive)liff.login({redirectUri:location.href});else tell('請按「確認 LINE 登入」，使用已授權的管理者帳號。');return;}
   token=liff.getIDToken()||'';access=await post('MAINT_ACCESS',{});$('maintIdentity').textContent='管理者：'+access.actor.name;$('maintControls').hidden=false;
   const select=$('maintEmployee');select.replaceChildren();for(const employee of access.employees)select.add(el('option',employee.company+'／'+employee.name,{value:employee.employeeId}));
+  $('maintCases').replaceChildren();for(const item of access.cases||[]){const button=el('button',item.label,{type:'button'});button.onclick=()=>run(button,async()=>{if(pending)throw new Error('請先查核上次保存結果。');access.defaultCase=item;await load(item.employeeId,item.date,true);});$('maintCases').append(button);}
   readPending();if(pending){tell('有一筆上次保存結果待查核，請先查核，不要重建補登。','error');return;}
   if(access.defaultCase)await load(access.defaultCase.employeeId,access.defaultCase.date,true);else tell('權限核對完成，請選擇員工與日期查詢。','success');
  }

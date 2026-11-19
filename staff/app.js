@@ -49,7 +49,7 @@ function staffPunchBlockReason(type){
  if(available.includes("上班"))return type==="下班"?"請先打「上班」。如果忘了打卡，送出當天的「上班」補打卡申請後即可打下班。":"請先打「上班」。";
  if(type==="上班")return "今天已打過「上班」。";
  if(type==="返回")return "請先打「中途離開」。";
- return "請先打「中途返回」，才能再次中途離開。";
+ return "請先打「中途返回」，才能下班或再次中途離開。若誤按或漏打，請聯絡管理者更正。";
 }
 function applyStaffClockButtons(){
  const available=availableStaffPunches();
@@ -64,7 +64,7 @@ function applyStaffClockButtons(){
  else if(!available)message="今天的打卡狀態尚未確認，可按「重新整理當月紀錄」再查一次。";
  else if(staffShiftPolicy?.hasClockInRequest&&available.includes("下班"))message="今天已有上班補打卡申請，可以先打「下班」，補卡仍會照常審核。";
  else if(available.includes("上班"))message="請先打「上班」，其他打卡按鈕目前無法使用。";
- else if(available.includes("返回"))message="已打中途離開，回公司後請按「中途返回」。返回後才能再次打中途離開；若漏打返回，下班時會提示確認。";
+ else if(available.includes("返回"))message="已打中途離開，必須先按「中途返回」才能下班。若誤按或漏打，請聯絡管理者更正，請勿補按不實的返回時間。";
  else if(available.length)message="外出請按「中途離開」，出勤結束請按「下班」。離開後才能打中途返回。";
  else message="今天的打卡已結束，四顆按鈕今天都無法再使用。";
  const hint=$("clockActionHint");
@@ -75,7 +75,6 @@ let confirmedForms={};
 try{confirmedForms=JSON.parse(sessionStorage.getItem("yc_staff_v2_confirmed_forms")||"{}")||{};}catch(_){}
 const formConfig={LEAVE_REQUEST:["submitLeave","leaveReceipt","leaveFields"],MISSING_REQUEST:["submitMissing","missingReceipt","missingFields"]};
 function confirmForm(op,id){
- if(["LEAVE_REQUEST","MISSING_REQUEST"].includes(op))return resetStaffApplication(op,id);
  if(!formConfig[op]||!/^[A-Za-z0-9_-]{12,80}$/.test(String(id||"")))return;
  confirmedForms[op]=id;
  try{sessionStorage.setItem("yc_staff_v2_confirmed_forms",JSON.stringify(confirmedForms));}catch(_){}
@@ -84,7 +83,8 @@ function confirmForm(op,id){
  $(button).setAttribute("data-confirmed","true");
  $(button).setAttribute("data-unavailable","true");$(button).disabled=true;
  $(button).textContent="已送出（請查看紀錄）";
- $(receipt).textContent="這筆申請已送出。編號："+id+"。另填一筆請按「新增申請」。";
+ $(receipt).textContent="這筆申請已保存，請勿重複送出。可在下方重新整理紀錄查看狀態。";
+ $(op==='LEAVE_REQUEST'?'newLeave':'newMissing').hidden=false;
 }
 function onAction(id,handler,blockReason){
  const button=$(id);
@@ -157,7 +157,8 @@ function staffReplyMessage(response,operation){
   CLOCK_ALREADY_STARTED:"今天已經開始打卡。請依實際情況選中途離開或返回。",
   CLOCK_START_REQUIRED:"今天尚無打卡紀錄，請先打上班或聯絡人資。",
   CLOCK_LEAVE_REQUIRED:"請先打中途離開卡，再打中途返回。",
-  CLOCK_RETURN_REQUIRED:"請先打中途返回卡，再打下一次中途離開。",
+  CLOCK_RETURN_REQUIRED:"中途離開後，必須先打中途返回才能下班。若誤按或漏打，請聯絡管理者更正。",
+  DUPLICATE_APPLICATION:"已有相同日期與時段的待審或已核准申請，本次不再重複送件。",
   CLOCK_MISSING_CONFIRM:"上一段有漏卡。確認後可先記錄本次時間，缺少的那一筆再申請補卡。",
   CLOCK_STATE_CHANGED:"紀錄已變更，請重新確認打卡。",
   CLOCK_ORDER_INVALID:"這次時間須晚於最後一筆打卡，請先查看紀錄。",
@@ -437,7 +438,7 @@ async function staffShiftArgs(type){
 
 async function execute(op,{write=false,decision=null,missingAfter=undefined}={}){
  if(busy)return;
- let writeStarted=false,reconcileClock=false;
+ let writeStarted=false,reconcileClock=false,reconcileApplication=false;
  const clockTiming=op==="GPS_CLOCK"?{started:performance.now(),gpsMs:0,submitMs:0}:null;
  try{
   if(!loggedIn||!liff.isLoggedIn())throw Error("請先登入 LINE");
@@ -489,11 +490,12 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
    if(write&&(response.code==="UNKNOWN"||response.persisted===null))
     unknownWrite=true;
    else if(write&&response.persisted===false)rememberWrite(null);
-   if(op==="GPS_CLOCK"&&response.reason==="CLOCK_MISSING_CONFIRM"&&response.persisted===false&&typeof response.missingAfter==="string"){
-    missingClockConfirmation={type:args.type,missingAfter:response.missingAfter};
-    const confirmButton=$("confirmMissingClock");
-    confirmButton.textContent="確認漏打，記錄本次「"+args.type+"」";
-    confirmButton.hidden=false;
+   if(response.reason==='DUPLICATE_APPLICATION'&&formConfig[op]&&response.existingRequest){
+    const existing=response.existingRequest;confirmForm(op,existing.requestId);rememberWrite(null);writeStarted=false;
+    const detail=existing.kind==='LEAVE'?existing.startDate+(existing.endDate!==existing.startDate?'～'+existing.endDate:'')+' '+existing.leaveType+' '+(existing.unit==='HOURS'?existing.fromTime+'～'+existing.toTime:'全天'):existing.date+' '+existing.type+' '+existing.time;
+    const state={PENDING:'待審核',APPROVED:'已核准'}[existing.status]||'已送出';
+    $(formConfig[op][1]).textContent='已有相同申請：'+detail+'（'+state+'）。本次未新增；請查看下方紀錄。';
+    status('已有相同日期與時段的申請（'+state+'），這次沒有重複送件。請查看紀錄。','success');return response;
    }
    const messages={ALREADY_CLOCKED:"今天已有同類型的正常打卡，請查看當月紀錄。",
     OUT_OF_RANGE:"目前定位超出打卡地點 50 公尺範圍，本次未寫入。",
@@ -520,7 +522,7 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
    const saved=response.result&&response.result.request;
    if(saved&&saved.date===localToday()&&staffShiftPolicy&&staffShiftPolicy.date===saved.date&&["STANDARD","EARLY"].includes(saved.shiftCode)){
     if(op==="GPS_CLOCK"&&!response.result.duplicate){
-     const allowedClockTypes=saved.type==="下班"?[]:saved.type==="中途離開"?["返回","下班"]:["中途離開","下班"];
+     const allowedClockTypes=saved.type==="下班"?[]:saved.type==="中途離開"?["返回"]:["中途離開","下班"];
      staffShiftPolicy={...staffShiftPolicy,todayShift:saved.shiftCode,clockInRecorded:staffShiftPolicy.clockInRecorded||saved.type==="上班",hasClockInRequest:false,allowedClockTypes};
     }else staffShiftPolicy=null;
     $("staffShiftBox").hidden=true;
@@ -560,22 +562,29 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
     submittedMonth={operation:op==="LEAVE_REQUEST"?"MY_LEAVES":"MY_MISSING",month:date.slice(0,7)};
     $("viewSubmittedMonth").hidden=false;
     $("viewSubmittedMonth").textContent="查看 "+submittedMonth.month+" 紀錄";
+    $(formConfig[op][1]).textContent='已保存：'+(request.kind==='LEAVE'?request.startDate+(request.endDate!==request.startDate?'～'+request.endDate:'')+' '+request.leaveType+' '+(request.unit==='HOURS'?request.fromTime+'～'+request.toTime:'全天'):request.date+' '+request.type+' '+request.time)+'。請勿重複送出；可重新整理下方紀錄。';
     summaries[op]+="日期："+date+(request.endDate&&request.endDate!==date?"～"+request.endDate:"")+"。可在下方選擇月份，按「重新整理當月紀錄」。";
    }
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
   if((write&&found)||["MY_CLOCKS","MY_LEAVES","MY_MISSING"].includes(op))collapseStaffRecords(op);
-  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=(found.type==="返回"?"中途返回":found.type)+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";if(clockTiming&&found){const totalSeconds=(performance.now()-clockTiming.started)/1000;success+="（本次耗時 "+totalSeconds.toFixed(1)+" 秒）";if(totalSeconds>=10)success+="\n定位 "+(clockTiming.gpsMs/1000).toFixed(1)+" 秒；送出與回覆 "+(clockTiming.submitMs/1000).toFixed(1)+" 秒。";}status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"上傳成功":null);
+  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=(found.type==="返回"?"中途返回":found.type)+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";if(clockTiming&&found){const totalSeconds=(performance.now()-clockTiming.started)/1000;success+="（本次耗時 "+totalSeconds.toFixed(1)+" 秒）";if(totalSeconds>=10)success+="\n定位 "+(clockTiming.gpsMs/1000).toFixed(1)+" 秒；送出與回覆 "+(clockTiming.submitMs/1000).toFixed(1)+" 秒。";}status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?success:null);
   return response;
  }catch(e){
   if(writeStarted)unknownWrite=true;
   reconcileClock=writeStarted&&op==="GPS_CLOCK"&&String(e&&e.message||e).startsWith("45 秒");
+  reconcileApplication=writeStarted&&['LEAVE_REQUEST','MISSING_REQUEST'].includes(op)&&String(e&&e.message||e).startsWith('45 秒');
   status("⚠️ "+String(e&&e.message||e)+
    (writeStarted?"\n寫入結果未確認：保留原單號，先查詢，不要再次送出。":""),writeStarted?"unknown":"error",writeStarted?"正在確認，請勿重複按…":null);
  }finally{
   busy=false;
   document.querySelectorAll("button").forEach(b=>{b.disabled=b.dataset&&b.dataset.unavailable==="true"});
   applyStaffClockButtons();
+  if(reconcileApplication&&pendingWrite&&pendingWrite.operation===op){
+   status('尚未收到送件回覆，正在確認原筆是否已保存；請勿重複送件。','busy');
+   await execute(op==='LEAVE_REQUEST'?'LEAVE_STATUS':'MISSING_STATUS');
+   if(pendingWrite)status('送件結果仍待確認，請稍後重新整理紀錄；先不要再送一次。','unknown');
+  }
   if(reconcileClock&&pendingWrite&&pendingWrite.operation==="GPS_CLOCK"){
    // Read the same original once. Never replay GPS_CLOCK or load monthly history.
    status("尚未收到打卡回覆，正在自動確認原筆結果；請勿再按上班或下班。","busy","正在確認，請勿重複按…");
@@ -630,7 +639,8 @@ function resetStaffApplication(op,id){
  $(fields).hidden=false;
  $(button).setAttribute("data-confirmed","false");$(button).setAttribute("data-unavailable","false");
  $(button).textContent=op==="LEAVE_REQUEST"?"送出請假申請":"送出補打卡申請";
- $(receipt).textContent="上一筆申請已送出，可在下方紀錄查看。";
+ $(receipt).textContent="已開啟新申請，填妥後再送件。";
+ $(op==='LEAVE_REQUEST'?'newLeave':'newMissing').hidden=true;
  const date=localToday();
  if(op==="LEAVE_REQUEST"){
   $("leaveType").selectedIndex=0;$("start").value=date;$("end").value=date;
@@ -649,7 +659,7 @@ function selectStaffPage(){
  for(const name of pages)$("page"+name).hidden=review||name!==target;
  const label=review?"主管審核":{Clock:"上下班打卡",Leave:"請假",Missing:"補打卡",Hr:"人資查詢（建置中）"}[target];
  document.title="YC/YT員工系統｜"+label;
- document.querySelector("h1").textContent="YC/YT員工系統｜"+label;
+ document.querySelector(".loginPanel h1").textContent="YC/YT員工系統｜"+label;
 }
 function prepareStaffRecords(){
  for(const id of ["clockHistoryTable","leaveHistory","missingHistory"])$(id).hidden=true;
@@ -709,21 +719,8 @@ const binds=[
  ["hrStatus","HR_STATUS",false]
 ];
 for(const [id,op,write] of binds)onAction(id,()=>execute(op,{write}));
-for(const [id,op] of []){
- onAction(id,()=>{
-  if(unknownWrite)throw Error("前一筆結果未確認，請先用原編號查詢。");
-  const value="V2_"+freshHex(16);
-  delete confirmedForms[op];
-  sessionStorage.setItem("yc_staff_v2_confirmed_forms",JSON.stringify(confirmedForms));
-  $("requestId").value=value;preserveId(value);
-  draftOperation=op;
-  $(formConfig[op][0]).setAttribute("data-confirmed","false");
-  $(formConfig[op][0]).setAttribute("data-unavailable","false");
-  $(formConfig[op][0]).textContent=op==="LEAVE_REQUEST"?"送出請假申請":"送出補打卡申請";
-  $(formConfig[op][1]).textContent="填好內容後再送出；目前尚未送件。";
-  $(formConfig[op][2]).hidden=false;
-  status("已準備新的申請，尚未送出。");
- });
+for(const [id,op] of [["newLeave","LEAVE_REQUEST"],["newMissing","MISSING_REQUEST"]]){
+ onAction(id,()=>{if(unknownWrite)throw Error("前一筆結果未確認，請先查詢原筆結果。");resetStaffApplication(op,confirmedForms[op]||'V2_'+freshHex(16));status("已開啟新申請，尚未送出。");});
 }
 onAction("hrApprove",()=>reviewFromButton("APPROVE"));
 onAction("hrReject",()=>reviewFromButton("REJECT"));
@@ -749,9 +746,7 @@ function punchClock(type,missingAfter){
 for(const [id,type] of punchButtons){
  onAction(id,()=>punchClock(type),()=>staffPunchBlockReason(type));
 }
-onAction("confirmMissingClock",()=>{
- if(missingClockConfirmation)return punchClock(missingClockConfirmation.type,missingClockConfirmation.missingAfter);
-});
+onAction("confirmMissingClock",()=>{status('請先打中途返回；若誤按或漏打，請聯絡管理者更正。','error');});
 if(unknownWrite)document.querySelectorAll("button").forEach(b=>{if(writeButtons.has(b.id))b.disabled=true;});
 prepareStaffRecords();
 selectStaffPage();

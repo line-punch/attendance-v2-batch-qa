@@ -38,11 +38,15 @@ details:has(#endpoint),label:has(#confirmed),label:has(#writeConsent),section:ha
 .staffRecords{margin-top:20px;border-top:1px solid #dde5e8;padding-top:14px}.staffRecords>summary{cursor:pointer;color:#236c54;font-weight:600;min-height:44px;display:list-item;line-height:44px}.staffRecords>summary:active{color:#174a3b}.staffRecords h2{margin-top:12px}
 body.maintenanceMode main{max-width:1100px}.maintenanceMode .pair{grid-template-columns:1fr 1fr}.maintManual{display:grid;grid-template-columns:1fr 1fr 1.5fr auto;gap:12px;align-items:center;margin:10px 0}.maintTable{overflow-x:auto}.maintTable table{min-width:650px}.maintTable input[type=checkbox]{width:22px;height:22px}#maintFeedback{position:sticky;top:8px;z-index:25;border:1px solid #b4c8c0;border-radius:10px;padding:14px;background:#edf5f1}#maintFeedback[data-phase=error]{background:#fff0eb;border-color:#bf795f}#maintFeedback[data-phase=success]{background:#e6f5ec}#maintFeedback[data-phase=busy]{background:#fff4d6}#maintApplications{font-size:14px;overflow-wrap:anywhere}#maintPreview{line-height:1.7}#maintSave{background:#205b7b;box-shadow:0 3px 0 #163d52;font-weight:700}@media(max-width:650px){.maintenanceMode .pair{grid-template-columns:1fr}.maintManual{grid-template-columns:1fr 1fr}.maintManual span{font-size:12px}}
 
+
+button[data-state=busy]{opacity:1!important;transform:translateY(3px);background:#174a3b;box-shadow:inset 0 2px 4px #123b2b}
+#leaveReceipt:not(:empty),#missingReceipt:not(:empty){padding:12px;background:#e6f5ec;border:1px solid #65a27c;border-radius:8px;line-height:1.6}
+#feedback{white-space:pre-line}#confirmMissingClock{display:none!important}
 </style></head><body><main>
 <section id="maintenancePage" hidden>
  <div id="maintFeedback" class="note" role="status" aria-live="polite">請確認登入與管理者權限。</div>
  <section class="panel"><h1>管理者出勤維護</h1><p>更正與補登會立即更新打卡系統，無需等待月底匯入人資。</p><button type="button" id="maintLogin">確認 LINE 登入</button><span id="maintIdentity"></span></section>
- <section class="panel" id="maintControls" hidden><div class="pair"><label>員工<select id="maintEmployee"></select></label><label>出勤日期<input type="date" id="maintDate"></label></div><button id="maintQuery" type="button">查詢當日紀錄</button><button id="maintCheck" type="button" hidden>查核上次保存結果</button></section>
+ <section class="panel" id="maintControls" hidden><div class="pair"><label>員工<select id="maintEmployee"></select></label><label>出勤日期<input type="date" id="maintDate"></label></div><div id="maintCases"></div><button id="maintQuery" type="button">查詢當日紀錄</button><button id="maintCheck" type="button" hidden>查核上次保存結果</button></section>
  <section class="panel" id="maintEditor" hidden><h2 id="maintPerson"></h2><p class="small">正常卡可更正類型、時間或作廢。勾選作廢後不再列入有效打卡；原內容另留紀錄。</p>
  <div class="maintTable"><table><thead><tr><th>原始打卡</th><th>更正後類型</th><th>更正後時間</th><th>作廢</th></tr></thead><tbody id="maintOriginals"></tbody></table></div>
  <h3>管理者補登</h3><p class="small">填寫截圖等佐證的實際時間。補登精確至分鐘，獨立列在補打卡申請，不會偽裝成GPS打卡。</p><div id="maintManuals"></div><button id="maintAdd" type="button">新增一筆補登</button>
@@ -93,7 +97,7 @@ body.maintenanceMode main{max-width:1100px}.maintenanceMode .pair{grid-template-
 </div>
 
 <button id="submitLeave" type="button">送出請假申請</button>
-<p id="leaveReceipt" role="status"></p>
+<p id="leaveReceipt" role="status"></p><button id="newLeave" type="button" hidden>新增另一筆請假申請</button>
 <div class="staffRecords" id="leaveRecords"><h2>請假紀錄</h2><p class="small">依請假日期查詢。跨月假單在涵蓋月份都顯示，同一申請編號不重複建單。</p><label>查詢月份<input id="month" type="month"></label>
 <button id="currentLeaves" type="button">重新整理當月紀錄</button>
 <div id="leaveHistory" role="region" aria-label="當月請假紀錄">尚未查詢</div></div>
@@ -104,7 +108,7 @@ body.maintenanceMode main{max-width:1100px}.maintenanceMode .pair{grid-template-
 <label>打卡類型<select id="missingType"><option>上班</option><option>中途離開</option><option>返回</option><option>下班</option></select></label>
 <label>原因<input id="missingReason" value=""></label></div>
 <button id="submitMissing" type="button">送出補打卡申請</button>
-<p id="missingReceipt" role="status"></p>
+<p id="missingReceipt" role="status"></p><button id="newMissing" type="button" hidden>新增另一筆補打卡申請</button>
 
 <div class="staffRecords" id="missingRecords"><h2>補打卡紀錄</h2><label>查詢月份<input id="missingMonth" type="month"></label>
 <button id="myMissing" type="button">重新整理當月紀錄</button>
@@ -131,5 +135,5 @@ body.maintenanceMode main{max-width:1100px}.maintenanceMode .pair{grid-template-
 </main>
 <script src="./config.js?v=20261109simple1"></script>
 <script src="./review-entry.js?v=20261109simple1"></script>
-<script src="./maintenance.js?v=20261119maint1"></script>
-<script src="./app.js?v=20261119maint1"></script></body></html>
+<script src="./maintenance.js?v=20261119guards1"></script>
+<script src="./app.js?v=20261119guards1"></script></body></html>
