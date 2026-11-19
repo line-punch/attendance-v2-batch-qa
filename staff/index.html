@@ -45,7 +45,7 @@ button[data-state=busy]{opacity:1!important;transform:translateY(3px);background
 </style></head><body><main>
 <section id="maintenancePage" hidden>
  <div id="maintFeedback" class="note" role="status" aria-live="polite">請確認登入與管理者權限。</div>
- <section class="panel"><h1>管理者出勤維護</h1><p>更正與補登會立即更新打卡系統，無需等待月底匯入人資。</p><button type="button" id="maintLogin">確認 LINE 登入</button><span id="maintIdentity"></span></section>
+ <section class="panel"><h1>管理者出勤維護</h1><p>更正與補登會立即更新打卡系統，無需等待月底匯入人資。</p><button type="button" id="maintLogin">確認 LINE 登入</button><span id="maintIdentity"></span><button id="maintNew" type="button" hidden>開始另一筆維護</button></section>
  <section class="panel" id="maintControls" hidden><div class="pair"><label>員工<select id="maintEmployee"></select></label><label>出勤日期<input type="date" id="maintDate"></label></div><div id="maintCases"></div><button id="maintQuery" type="button">查詢當日紀錄</button><button id="maintCheck" type="button" hidden>查核上次保存結果</button></section>
  <section class="panel" id="maintEditor" hidden><h2 id="maintPerson"></h2><p class="small">正常卡可更正類型、時間或作廢。勾選作廢後不再列入有效打卡；原內容另留紀錄。</p>
  <div class="maintTable"><table><thead><tr><th>原始打卡</th><th>更正後類型</th><th>更正後時間</th><th>作廢</th></tr></thead><tbody id="maintOriginals"></tbody></table></div>
@@ -135,5 +135,5 @@ button[data-state=busy]{opacity:1!important;transform:translateY(3px);background
 </main>
 <script src="./config.js?v=20261109simple1"></script>
 <script src="./review-entry.js?v=20261109simple1"></script>
-<script src="./maintenance.js?v=20261119guards1"></script>
+<script src="./maintenance.js?v=20261119savedlock1"></script>
 <script src="./app.js?v=20261119guards1"></script></body></html>
