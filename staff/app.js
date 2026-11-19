@@ -79,11 +79,13 @@ function confirmForm(op,id){
  confirmedForms[op]=id;
  try{sessionStorage.setItem("yc_staff_v2_confirmed_forms",JSON.stringify(confirmedForms));}catch(_){}
  const [button,receipt,fields]=formConfig[op];
- $(fields).hidden=true;
+ $(fields).hidden=false;
+ for(const field of (op==='LEAVE_REQUEST'?['start','end','leaveType','unit','fromTime','toTime','reason']:['missingDate','missingTime','missingType','missingReason'])){$(field).value='';$(field).disabled=true;}
+ if(op==='LEAVE_REQUEST')$('hourFields').hidden=true;
  $(button).setAttribute("data-confirmed","true");
  $(button).setAttribute("data-unavailable","true");$(button).disabled=true;
  $(button).textContent="已送出（請查看紀錄）";
- $(receipt).textContent="這筆申請已保存，請勿重複送出。可在下方重新整理紀錄查看狀態。";
+ $(receipt).textContent="已送出，填寫資料已清空。請到下方查詢區重新整理紀錄，查看內容與狀態。";
  $(op==='LEAVE_REQUEST'?'newLeave':'newMissing').hidden=false;
 }
 function onAction(id,handler,blockReason){
@@ -492,9 +494,8 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
    else if(write&&response.persisted===false)rememberWrite(null);
    if(response.reason==='DUPLICATE_APPLICATION'&&formConfig[op]&&response.existingRequest){
     const existing=response.existingRequest;confirmForm(op,existing.requestId);rememberWrite(null);writeStarted=false;
-    const detail=existing.kind==='LEAVE'?existing.startDate+(existing.endDate!==existing.startDate?'～'+existing.endDate:'')+' '+existing.leaveType+' '+(existing.unit==='HOURS'?existing.fromTime+'～'+existing.toTime:'全天'):existing.date+' '+existing.type+' '+existing.time;
     const state={PENDING:'待審核',APPROVED:'已核准'}[existing.status]||'已送出';
-    $(formConfig[op][1]).textContent='已有相同申請：'+detail+'（'+state+'）。本次未新增；請查看下方紀錄。';
+    $(formConfig[op][1]).textContent='已有相同日期與時段的申請（'+state+'）。本次未新增，填寫資料已清空；請到下方查詢區查看。';
     status('已有相同日期與時段的申請（'+state+'），這次沒有重複送件。請查看紀錄。','success');return response;
    }
    const messages={ALREADY_CLOCKED:"今天已有同類型的正常打卡，請查看當月紀錄。",
@@ -562,7 +563,7 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
     submittedMonth={operation:op==="LEAVE_REQUEST"?"MY_LEAVES":"MY_MISSING",month:date.slice(0,7)};
     $("viewSubmittedMonth").hidden=false;
     $("viewSubmittedMonth").textContent="查看 "+submittedMonth.month+" 紀錄";
-    $(formConfig[op][1]).textContent='已保存：'+(request.kind==='LEAVE'?request.startDate+(request.endDate!==request.startDate?'～'+request.endDate:'')+' '+request.leaveType+' '+(request.unit==='HOURS'?request.fromTime+'～'+request.toTime:'全天'):request.date+' '+request.type+' '+request.time)+'。請勿重複送出；可重新整理下方紀錄。';
+    $(formConfig[op][1]).textContent='已送出，填寫資料已清空。請到下方查詢區重新整理紀錄，查看內容與狀態。';
     summaries[op]+="日期："+date+(request.endDate&&request.endDate!==date?"～"+request.endDate:"")+"。可在下方選擇月份，按「重新整理當月紀錄」。";
    }
   }
@@ -637,6 +638,7 @@ function resetStaffApplication(op,id){
  try{sessionStorage.setItem("yc_staff_v2_confirmed_forms",JSON.stringify(confirmedForms));}catch(_){}
  const [button,receipt,fields]=formConfig[op];
  $(fields).hidden=false;
+ for(const field of (op==='LEAVE_REQUEST'?['start','end','leaveType','unit','fromTime','toTime','reason']:['missingDate','missingTime','missingType','missingReason']))$(field).disabled=false;
  $(button).setAttribute("data-confirmed","false");$(button).setAttribute("data-unavailable","false");
  $(button).textContent=op==="LEAVE_REQUEST"?"送出請假申請":"送出補打卡申請";
  $(receipt).textContent="已開啟新申請，填妥後再送件。";
