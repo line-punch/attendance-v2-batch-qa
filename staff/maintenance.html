@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YC/YT員工系統</title>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+:root{font-family:system-ui,"Microsoft JhengHei",sans-serif;background:#eef4f5;color:#263846}
+body{margin:0;padding:14px}main{max-width:650px;margin:auto}.panel{background:#fff;border-radius:14px;padding:18px;margin:12px 0}
+h1{font-size:22px;margin:0 0 12px}h2{font-size:18px;margin:0 0 10px}
+#reviewHint{white-space:pre-line;line-height:1.6}
+label{display:block;font-weight:600;margin-top:12px}
+input,select,textarea{width:100%;font:inherit;box-sizing:border-box;padding:10px;border:1px solid #c5d3d6;border-radius:8px}
+input[type=checkbox]{width:auto}button{font:inherit;background:#236c54;color:#fff;border:0;border-radius:8px;padding:10px;margin:8px 5px 4px 0;cursor:pointer}
+button{min-height:44px;box-shadow:0 3px 0 #164937;transition:transform .08s,box-shadow .08s,background-color .08s;touch-action:manipulation;-webkit-tap-highlight-color:#a4ddc3}
+button:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 2px 4px #123b2b;background:#174a3b}
+button:focus-visible{outline:3px solid #d59523;outline-offset:3px}
+button:disabled{opacity:.55;cursor:not-allowed}button[aria-busy=true]{opacity:1;background:#47685d;box-shadow:none}
+button[aria-busy=true]::before{content:"";display:inline-block;width:12px;height:12px;margin-right:8px;border:2px solid #ffffff70;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){button{transition:none}button[aria-busy=true]::before{animation:none}}
+.note{background:#f3f5f7;padding:10px;border-left:3px solid #758b98}
+#feedback{position:sticky;top:8px;z-index:20;background:#eef3f7;border:1px solid #b6c8d1;border-radius:10px;padding:12px;margin:8px 0;box-shadow:0 2px 8px #0002}
+#feedback[data-phase=busy]{background:#fff4d6;border-color:#bc8f29}#feedback[data-phase=success]{background:#e6f5ec;border-color:#65a27c}
+#feedback[data-phase=error],#feedback[data-phase=unknown]{background:#fff0eb;border-color:#bf795f}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf3f5;padding:12px;border-radius:10px}
+.small{font-size:13px;color:#667984}.pair{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+nav{display:grid;grid-template-columns:1fr 1fr;gap:6px}nav button{margin:0;padding:15px 8px}
+[hidden]{display:none!important}table{width:100%;border-collapse:collapse;font-size:14px}th,td{overflow-wrap:anywhere;text-align:left;padding:9px 4px;border-bottom:1px solid #dde5e8}
+nav button[aria-pressed=true]{background:#174a3b;outline:2px solid #7bb7a2}
+@media(max-width:520px){
+ #leaveHistory table,#missingHistory table{display:block}
+ #leaveHistory tr,#missingHistory tr{display:block;border:1px solid #dde5e8;border-radius:10px;padding:8px;margin:10px 0}
+ #leaveHistory tr:first-child,#missingHistory tr:first-child{display:none}
+ #leaveHistory td,#missingHistory td{display:grid;grid-template-columns:85px minmax(0,1fr);gap:8px;padding:7px 4px}
+ #leaveHistory td::before,#missingHistory td::before{content:attr(data-label);font-weight:600;color:#526b75}
+}
+details:has(#endpoint),label:has(#confirmed),label:has(#writeConsent),section:has(>label>#writeConsent)>p{display:none}#reviewPanel:not([open]){display:none}nav[aria-label="員工功能"],details:has(#requestId),details:has(#result),#viewSubmittedMonth{display:none!important}.pair{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.pair>label{min-width:0}input[type="date"],input[type="time"]{min-width:0;max-width:100%}@media(max-width:520px){.pair{grid-template-columns:minmax(0,1fr);gap:12px}}
+.loginPanel{padding:14px 18px}.loginPanel h1{font-size:20px;margin-bottom:8px}.loginRow{display:flex;align-items:center;gap:12px}.loginRow #login{flex:0 0 auto;margin:0;font-size:15px;padding:10px 12px}.loginRow #identity{font-size:12px;font-weight:400;color:#6b7280;line-height:1.5;margin:0;min-width:0;overflow-wrap:anywhere}.clockActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:22px 0 24px}.clockActions button{width:100%;min-height:64px;margin:0;font-size:22px;font-weight:700;padding:16px 12px}.clockActions .midshift{background:#2b6289;box-shadow:0 3px 0 #20465f}.clockActions button:disabled{opacity:1;-webkit-text-fill-color:#fff}.clockActions button[aria-disabled=true]{cursor:not-allowed}.clockActions button[aria-busy=true]{transform:translateY(3px);background:#174a3b;box-shadow:inset 0 2px 4px #123b2b}.clockActions .midshift:is(:active:not(:disabled),[aria-busy=true]){background:#214a68;box-shadow:inset 0 2px 4px #163442}#clockActionHint{margin:10px 0 0}section.panel:has(>label>#writeConsent){display:none}
+.staffRecords{margin-top:20px;border-top:1px solid #dde5e8;padding-top:14px}.staffRecords>summary{cursor:pointer;color:#236c54;font-weight:600;min-height:44px;display:list-item;line-height:44px}.staffRecords>summary:active{color:#174a3b}.staffRecords h2{margin-top:12px}
+body.maintenanceMode main{max-width:1100px}.maintenanceMode .pair{grid-template-columns:1fr 1fr}.maintManual{display:grid;grid-template-columns:1fr 1fr 1.5fr auto;gap:12px;align-items:center;margin:10px 0}.maintTable{overflow-x:auto}.maintTable table{min-width:650px}.maintTable input[type=checkbox]{width:22px;height:22px}.maintTable input[type=radio]{width:22px;height:22px}#maintLeaveRows td{vertical-align:top;overflow-wrap:anywhere}#maintControls button[aria-pressed=true]{background:#205b7b;box-shadow:inset 0 0 0 2px #133d53}#maintFeedback{position:sticky;top:8px;z-index:25;border:1px solid #b4c8c0;border-radius:10px;padding:14px;background:#edf5f1}#maintFeedback[data-phase=error]{background:#fff0eb;border-color:#bf795f}#maintFeedback[data-phase=success]{background:#e6f5ec}#maintFeedback[data-phase=busy]{background:#fff4d6}#maintApplications{font-size:14px;overflow-wrap:anywhere}#maintPreview{line-height:1.7}#maintSave,#maintLeaveSave{background:#205b7b;box-shadow:0 3px 0 #163d52;font-weight:700}@media(max-width:650px){.maintenanceMode .pair{grid-template-columns:1fr}.maintManual{grid-template-columns:1fr 1fr}.maintManual span{font-size:12px}}
+
+
+button[data-state=busy]{opacity:1!important;transform:translateY(3px);background:#174a3b;box-shadow:inset 0 2px 4px #123b2b}
+#leaveReceipt:not(:empty),#missingReceipt:not(:empty){padding:12px;background:#e6f5ec;border:1px solid #65a27c;border-radius:8px;line-height:1.6}
+#feedback{white-space:pre-line}#confirmMissingClock{display:none!important}
+</style></head><body><main>
+<section id="maintenancePage" hidden>
+ <div id="maintFeedback" class="note" role="status" aria-live="polite">請確認登入與管理者權限。</div>
+ <section class="panel"><h1>管理者維護</h1><p>這裡操作的是正式出勤及請假紀錄，請先預覽核對後再保存。</p><button type="button" id="maintLogin">確認 LINE 登入</button><span id="maintIdentity"></span><button id="maintNew" type="button" hidden>開始另一筆維護</button></section>
+ <section class="panel" id="maintControls" hidden><div class="pair"><button id="maintClockMode" type="button" aria-pressed="true">出勤更正／補登</button><button id="maintLeaveMode" type="button" aria-pressed="false">請假申請維護</button></div><p id="maintScope" class="small"></p><div class="pair"><label>員工<select id="maintEmployee"></select></label><label>紀錄日期<input type="date" id="maintDate"></label></div><div id="maintCases"></div><button id="maintQuery" type="button">查詢當日紀錄</button><button id="maintCheck" type="button" hidden>查核上次保存結果</button></section>
+ <section class="panel" id="maintLeaveEditor" hidden><h2 id="maintLeavePerson"></h2><h3>重複請假申請作廢</h3><p>選一張已核准單保留，再選另一張相同內容的重複單作廢。原申請與主管審核紀錄都會保留。</p>
+ <div class="maintTable"><table><thead><tr><th>請假內容／送件時間／單號</th><th>狀態與紀錄</th><th>保留</th><th>作廢</th></tr></thead><tbody id="maintLeaveRows"></tbody></table></div>
+ <label>作廢原因<textarea id="maintLeaveReason" maxlength="500" rows="3" required></textarea></label><button id="maintLeaveMakePreview" type="button">預覽作廢結果</button><div id="maintLeavePreview" class="note" hidden></div><button id="maintLeaveSave" type="button" hidden>確認作廢重複申請</button></section>
+ <section class="panel" id="maintEditor" hidden><h2 id="maintPerson"></h2><p class="small">正常卡可更正類型、時間或作廢。勾選作廢後不再列入有效打卡；原內容另留紀錄。</p>
+ <div class="maintTable"><table><thead><tr><th>原始打卡</th><th>更正後類型</th><th>更正後時間</th><th>作廢</th></tr></thead><tbody id="maintOriginals"></tbody></table></div>
+ <h3>管理者補登</h3><p class="small">填寫截圖等佐證的實際時間。補登精確至分鐘，獨立列在補打卡申請，不會偽裝成GPS打卡。</p><div id="maintManuals"></div><button id="maintAdd" type="button">新增一筆補登</button>
+ <details><summary>當日請假與員工補打卡申請</summary><div id="maintApplications"></div></details><p id="maintDuplicate" class="note" hidden>此日有內容相同的已核准假單，請另行核對，避免人資重複計假。本次出勤更正不更動假單。</p>
+ <label>更正原因<textarea id="maintReason" maxlength="500" rows="3" required></textarea></label><button id="maintMakePreview" type="button">預覽更正結果</button><div id="maintPreview" class="note" hidden></div><button id="maintSave" type="button" hidden>確認保存更正</button>
+ </section>
+</section>
+
+</main><script>window.V2_QA_LIFF_ID="2009482137-XxVOIdbI";</script><script src="./maintenance-main.js?v=20261119live1"></script><script>window.startAttendanceMaintenance();</script></body></html>
