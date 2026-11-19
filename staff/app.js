@@ -185,6 +185,7 @@ function status(t,phase="info",publicText=null){
  $("result").textContent=t;
  $("feedback").textContent=publicText===null?String(t).split("\n")[0]:publicText;
  $("feedback").setAttribute("data-phase",phase);
+ $("feedback").hidden=!$("feedback").textContent.trim();
 }
 function rememberWrite(value){
  // Persist BEFORE transmission; a reload must not permit a second write.
@@ -641,7 +642,7 @@ function resetStaffApplication(op,id){
  for(const field of (op==='LEAVE_REQUEST'?['start','end','leaveType','unit','fromTime','toTime','reason']:['missingDate','missingTime','missingType','missingReason']))$(field).disabled=false;
  $(button).setAttribute("data-confirmed","false");$(button).setAttribute("data-unavailable","false");
  $(button).textContent=op==="LEAVE_REQUEST"?"送出請假申請":"送出補打卡申請";
- $(receipt).textContent="已開啟新申請，填妥後再送件。";
+ $(receipt).textContent="";
  $(op==='LEAVE_REQUEST'?'newLeave':'newMissing').hidden=true;
  const date=localToday();
  if(op==="LEAVE_REQUEST"){
@@ -722,7 +723,7 @@ const binds=[
 ];
 for(const [id,op,write] of binds)onAction(id,()=>execute(op,{write}));
 for(const [id,op] of [["newLeave","LEAVE_REQUEST"],["newMissing","MISSING_REQUEST"]]){
- onAction(id,()=>{if(unknownWrite)throw Error("前一筆結果未確認，請先查詢原筆結果。");resetStaffApplication(op,confirmedForms[op]||'V2_'+freshHex(16));status("已開啟新申請，尚未送出。");});
+ onAction(id,()=>{if(unknownWrite)throw Error("前一筆結果未確認，請先查詢原筆結果。");resetStaffApplication(op,confirmedForms[op]||'V2_'+freshHex(16));status("","info");});
 }
 onAction("hrApprove",()=>reviewFromButton("APPROVE"));
 onAction("hrReject",()=>reviewFromButton("REJECT"));
