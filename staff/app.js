@@ -436,6 +436,7 @@ async function staffShiftArgs(type){
 async function execute(op,{write=false,decision=null,missingAfter=undefined}={}){
  if(busy)return;
  let writeStarted=false,reconcileClock=false;
+ const clockTiming=op==="GPS_CLOCK"?{started:performance.now(),gpsMs:0,submitMs:0}:null;
  try{
   if(!loggedIn||!liff.isLoggedIn())throw Error("請先登入 LINE");
   if(!$("confirmed").checked)throw Error("請確認使用員工服務 測試部署");
@@ -462,7 +463,9 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
    if(missingAfter!==undefined)args.missingAfter=missingAfter;
    busy=true;document.querySelectorAll("button").forEach(b=>{b.disabled=true});
    status("正在取得新的 GPS 定位，尚未送出打卡…","busy","打卡中…");
+   const gpsStarted=performance.now();
    args={...args,...await obtainGPS()};
+   clockTiming.gpsMs=performance.now()-gpsStarted;
   }
   if(op==="HR_REVIEW"&&!/^[A-Za-z0-9_-]{12,80}$/.test(args.requestId))
    throw Error("缺少人資審核原單號");
@@ -473,7 +476,9 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
   busy=true;
   document.querySelectorAll("button").forEach(b=>{if(b.id!=="login")b.disabled=true});
   status("操作執行中；請勿重複點擊。\n原申請編號："+(args.requestId||"無"),"busy",op==="GPS_CLOCK"?"打卡中…":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"申請上傳中…":op==="GPS_STATUS"?"正在確認，請勿重複按…":"查詢中…");
+  const submitStarted=performance.now();
   const response=await post(endpoint,op,token,args);
+  if(clockTiming)clockTiming.submitMs=performance.now()-submitStarted;
   if(response.ok!==true){
    if(response.code==="AUTH"){
     loggedIn=false;$("identity").textContent="LINE 驗證未通過，請重新登入後再查詢。";
@@ -558,7 +563,7 @@ async function execute(op,{write=false,decision=null,missingAfter=undefined}={})
   }
   if(op==="MY_LEAVES"||op==="MY_MISSING")summaries[op]=response.result.month+" 紀錄已更新。";
   if((write&&found)||["MY_CLOCKS","MY_LEAVES","MY_MISSING"].includes(op))collapseStaffRecords(op);
-  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=(found.type==="返回"?"中途返回":found.type)+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"上傳成功":null);
+  let success=summaries[op]||"查詢完成。";if((op==="GPS_CLOCK"||op==="GPS_STATUS")&&found)success=(found.type==="返回"?"中途返回":found.type)+"打卡成功："+found.time;if(["LEAVE_REQUEST","MISSING_REQUEST","HR_REVIEW"].includes(op)&&response.result.notification!=="ACCEPTED")success+=" 資料已保存，LINE通知尚未確認，請以紀錄狀態為準。";if(clockTiming&&found){const totalSeconds=(performance.now()-clockTiming.started)/1000;success+="（本次耗時 "+totalSeconds.toFixed(1)+" 秒）";if(totalSeconds>=10)success+="\n定位 "+(clockTiming.gpsMs/1000).toFixed(1)+" 秒；送出與回覆 "+(clockTiming.submitMs/1000).toFixed(1)+" 秒。";}status(success,"success",["GPS_CLOCK","GPS_STATUS"].includes(op)?"打卡成功":["LEAVE_REQUEST","MISSING_REQUEST"].includes(op)?"上傳成功":null);
   return response;
  }catch(e){
   if(writeStarted)unknownWrite=true;
