@@ -31,7 +31,7 @@ window.startAttendanceMaintenance=async function(){
    document.body.append(frame,form);form.submit();
   });
  }
- function message(code,reason,operation){const errorCode=reason||code;const label=operation==='MAINT_ACCESS'?'登入與管理者權限核對':operation.endsWith('_QUERY')?'紀錄查詢':operation.endsWith('_PREVIEW')?'預覽核對':operation.endsWith('_STATUS')?'保存結果查核':'保存';const known=({MAINT_ADMIN_REQUIRED:'目前這個 LINE 帳號尚未取得出勤維護權限。請由系統負責人設定專用管理者。',MAINT_LEAVE_FORM:'請核對保留單、作廢單與至少3字的作廢原因。',MAINT_LEAVE_STALE:'假單已更新，請重新查詢後預覽。',MAINT_LEAVE_PAIR:'請選擇同一員工的兩張不同假單。',MAINT_LEAVE_STATUS:'只可作廢待審或核准的重複單，保留單必須已核准。',MAINT_LEAVE_NOT_DUPLICATE:'兩張假單的假別、日期或時段不同，不能視為重複單作廢。',MAINT_LEAVE_ALREADY_VOIDED:'此張假單已作廢，請重新查詢。',MAINT_LEAVE_PREVIEW_REQUIRED:'作廢預覽已失效，請重新預覽。',MAINT_LEAVE_ID_CONFLICT:'這筆保存編號已有不同內容，請先查核上次結果。',MAINT_LEAVE_AUDIT_INVALID:'作廢紀錄無法核對，請聯絡系統負責人。',MAINT_LEAVE_DISABLED:'請假作廢功能尚未開放。',MAINT_AUTH:'LINE 登入已過期或無法核對，請再按「確認 LINE 登入」重新登入。尚未進行任何維護保存。',MAINT_STALE:'原始資料已更新，請重新查詢並預覽。',MAINT_PREVIEW_REQUIRED:'預覽已失效，請重新預覽。',MAINT_REASON:'請填寫至少3字的更正原因。',MAINT_START_REQUIRED:'缺少上班紀錄，請先補齊上班時間。',MAINT_RETURN_REQUIRED:'中途離開後缺少返回，請先核對並補齊，才能保存下班。',MAINT_RETURN_ORDER:'沒有相對應的中途離開，不能補登中途返回。',MAINT_LEAVE_ORDER:'中途離開的前一筆必須是上班或中途返回。',MAINT_DUPLICATE_IN:'同一天只能有一筆有效上班。',MAINT_AFTER_END:'下班後不能再有當日出勤，請核對順序。',MAINT_SAME_TIME:'有兩筆出勤時間相同，請核對。',MAINT_FUTURE_TIME:'不能補登尚未發生的未來時間。',MAINT_DAY:'請選擇今天或以前的有效日期。',MAINT_EMPTY_DAY:'至少保留一筆有效出勤紀錄。',MAINT_DISABLED:'出勤維護尚未啟用。',MAINT_ID_CONFLICT:'這個保存編號已有不同內容，請先查核上次結果。',MAINT_SAVE_UNKNOWN:'保存結果尚未確認，請查核上次保存結果。'})[errorCode];if(known)return known;const reference=/^[A-Z][A-Z0-9_]{1,60}$/.test(errorCode||'')?'（'+errorCode+'）':'';return label+'未完成'+reference+'。'+(operation==='MAINT_ACCESS'?'請重新確認 LINE 登入；尚未進行任何維護保存。':['MAINT_COMMIT','MAINT_LEAVE_COMMIT'].includes(operation)?'結果尚未確認，請先查核上次保存結果，不要重新送出。':'請稍後重新操作；尚未進行新的保存。');}
+ function message(code,reason,operation){const errorCode=reason||code;const label=operation==='MAINT_ACCESS'?'登入與管理者權限核對':operation.endsWith('_QUERY')?'紀錄查詢':operation.endsWith('_PREVIEW')?'預覽核對':operation.endsWith('_STATUS')?'保存結果查核':'保存';const known=({MAINT_ADMIN_REQUIRED:'目前這個 LINE 帳號尚未取得出勤維護權限。請由系統負責人設定專用管理者。',MAINT_LEAVE_FORM:'請核對保留單、作廢單與至少3字的作廢原因。',MAINT_LEAVE_STALE:'假單已更新，請重新查詢後預覽。',MAINT_LEAVE_PAIR:'請選擇同一員工的兩張不同假單。',MAINT_LEAVE_STATUS:'只可作廢待審或核准的重複單，保留單必須已核准。',MAINT_LEAVE_NOT_DUPLICATE:'兩張假單的假別、日期或時段不同，不能視為重複單作廢。',MAINT_LEAVE_ALREADY_VOIDED:'此張假單已作廢，請重新查詢。',MAINT_LEAVE_PREVIEW_REQUIRED:'作廢預覽已失效，請重新預覽。',MAINT_LEAVE_ID_CONFLICT:'這筆保存編號已有不同內容，請先查核上次結果。',MAINT_LEAVE_AUDIT_INVALID:'作廢紀錄無法核對，請聯絡系統負責人。',MAINT_LEAVE_DISABLED:'請假作廢功能尚未開放。',MAINT_AUTH:'LINE 登入驗證未通過。請再按「確認 LINE 登入」更新登入；若顯示需要關閉視窗，請按提示重新開啟。尚未進行任何維護保存。',MAINT_STALE:'原始資料已更新，請重新查詢並預覽。',MAINT_PREVIEW_REQUIRED:'預覽已失效，請重新預覽。',MAINT_REASON:'請填寫至少3字的更正原因。',MAINT_START_REQUIRED:'缺少上班紀錄，請先補齊上班時間。',MAINT_RETURN_REQUIRED:'中途離開後缺少返回，請先核對並補齊，才能保存下班。',MAINT_RETURN_ORDER:'沒有相對應的中途離開，不能補登中途返回。',MAINT_LEAVE_ORDER:'中途離開的前一筆必須是上班或中途返回。',MAINT_DUPLICATE_IN:'同一天只能有一筆有效上班。',MAINT_AFTER_END:'下班後不能再有當日出勤，請核對順序。',MAINT_SAME_TIME:'有兩筆出勤時間相同，請核對。',MAINT_FUTURE_TIME:'不能補登尚未發生的未來時間。',MAINT_DAY:'請選擇今天或以前的有效日期。',MAINT_EMPTY_DAY:'至少保留一筆有效出勤紀錄。',MAINT_DISABLED:'出勤維護尚未啟用。',MAINT_ID_CONFLICT:'這個保存編號已有不同內容，請先查核上次結果。',MAINT_SAVE_UNKNOWN:'保存結果尚未確認，請查核上次保存結果。'})[errorCode];if(known)return known;const reference=/^[A-Z][A-Z0-9_]{1,60}$/.test(errorCode||'')?'（'+errorCode+'）':'';return label+'未完成'+reference+'。'+(operation==='MAINT_ACCESS'?'請重新確認 LINE 登入；尚未進行任何維護保存。':['MAINT_COMMIT','MAINT_LEAVE_COMMIT'].includes(operation)?'結果尚未確認，請先查核上次保存結果，不要重新送出。':'請稍後重新操作；尚未進行新的保存。');}
  function applyControls(){
   const locked=busy||!!pending||completed;
   root.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=locked||e.dataset.ineligible==='true');
@@ -101,9 +101,18 @@ window.startAttendanceMaintenance=async function(){
  $('maintLogin').onclick=()=>run($('maintLogin'),async()=>{await login(true);});
  async function login(interactive=false){
   tell('正在核對 LINE 登入與管理者權限…','busy');await ensureLiff();
-  if(needsLoginRefresh){if(liff.isLoggedIn())liff.logout();needsLoginRefresh=false;}
-  if(!liff.isLoggedIn()){if(interactive)liff.login({redirectUri:location.href});else tell('請按「確認 LINE 登入」，使用已授權的管理者帳號。');return;}
-  token=liff.getIDToken()||'';if(!token){const error=new Error('尚未取得 LINE 登入憑證，請再按「確認 LINE 登入」重新登入。');error.code='MAINT_AUTH';throw error;}access=await post('MAINT_ACCESS',{});$('maintIdentity').textContent='管理者：'+access.actor.name;$('maintControls').hidden=false;
+  const inClient=typeof liff.isInClient==='function'&&liff.isInClient();
+  const logged=liff.isLoggedIn(),candidate=logged?liff.getIDToken()||'':'';
+  let decoded=null;try{decoded=logged&&typeof liff.getDecodedIDToken==='function'?liff.getDecodedIDToken():null;}catch(_){}
+  // Local expiration is a renewal hint only. The server still verifies the raw ID token.
+  const exp=decoded&&Number(decoded.exp),expired=Number.isFinite(exp)&&exp<=Date.now()/1000+30;
+  if(needsLoginRefresh||!logged||!candidate||expired){
+   token='';access=null;$('maintControls').hidden=true;
+   if(inClient){needsLoginRefresh=true;tell('目前 LINE 視窗的登入憑證無法使用。請按右上角「×」關閉整個視窗，再重新開啟管理者維護並按「確認 LINE 登入」。重新整理或重複按登入無法更新這個視窗的憑證；尚未保存任何維護資料。','error');return;}
+   if(logged)liff.logout();needsLoginRefresh=false;
+   tell('正在重新取得 LINE 登入憑證，請完成 LINE 登入後再按「確認 LINE 登入」。','busy');liff.login({redirectUri:location.href});return;
+  }
+  token=candidate;access=await post('MAINT_ACCESS',{});$('maintIdentity').textContent='管理者：'+access.actor.name;$('maintControls').hidden=false;
   const select=$('maintEmployee');select.replaceChildren();for(const employee of access.employees)select.add(el('option',employee.company+'／'+employee.name,{value:employee.employeeId}));
   $('maintCases').replaceChildren();$('maintLeaveMode').hidden=!access.leaveMaintenance;
   readPending();if(pending){tell('有一筆上次保存結果待查核，請先查核，不要重建補登。','error');return;}
