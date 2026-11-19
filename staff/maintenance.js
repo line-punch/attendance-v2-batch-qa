@@ -2,16 +2,16 @@
 window.startAttendanceMaintenance=async function(){
  'use strict';
  const $=id=>document.getElementById(id),root=$('maintenancePage');
- document.title='YC/YT員工系統｜管理者出勤維護';document.body.classList.add('maintenanceMode');root.hidden=false;
+ document.title='YC/YT員工系統｜管理者維護';document.body.classList.add('maintenanceMode');root.hidden=false;
  document.querySelectorAll('main > :not(#maintenancePage)').forEach(el=>el.hidden=true);
- let token='',access=null,base=null,draft=null,proof=null,busy=false,pending=null,completed=false,savedMark=null,newEditSession=false;
+ let token='',access=null,base=null,draft=null,proof=null,busy=false,pending=null,completed=false,savedMark=null,newEditSession=false,mode='CLOCK',leaveBase=null,leaveDraft=null,leaveProof=null;
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  $('maintDate').max=today;$('maintDate').value=today;
  try{pending=JSON.parse(sessionStorage.getItem('yc-maint-pending')||'null');savedMark=JSON.parse(sessionStorage.getItem('yc-maint-completed')||'null');}catch(_){}
  if(savedMark&&(!/^[A-Za-z0-9_-]{2,40}$/.test(savedMark.employeeId||'')||!/^\d{4}-\d{2}-\d{2}$/.test(savedMark.date||'')))savedMark=null;
  function tell(message,phase='info'){$('maintFeedback').textContent=message;$('maintFeedback').dataset.phase=phase;$('maintFeedback').hidden=!message.trim();}
- function clearPreview(){proof=null;$('maintPreview').hidden=true;$('maintSave').hidden=true;}
- function id(){return 'V2_MTX_'+Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
+ function clearPreview(){proof=null;leaveProof=null;$('maintLeavePreview').hidden=true;$('maintLeaveSave').hidden=true;$('maintPreview').hidden=true;$('maintSave').hidden=true;}
+ function id(prefix='V2_MTX_'){return prefix+Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
  function el(tag,text,props={}){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;Object.assign(e,props);return e;}
  function typeSelect(value){const s=el('select',undefined);for(const v of ['上班','中途離開','返回','下班'])s.add(el('option',v==='返回'?'中途返回':v,{value:v}));s.value=value;return s;}
  function readPending(){try{sessionStorage.setItem('yc-maint-pending',JSON.stringify(pending));}catch(_){}$('maintCheck').hidden=!pending;}
@@ -27,32 +27,32 @@ window.startAttendanceMaintenance=async function(){
    const receive=event=>{if(!/^https:\/\/([a-z0-9-]+\.)?(script\.google\.com|googleusercontent\.com)$/.test(event.origin)||event.data?.bridge!=='YC_V2_STAFF_V1'||event.data.nonce!==nonce)return;
     if(event.data.ok&&event.data.result?.ok)done(null,event.data.result);else done(new Error(message(event.data.code,event.data.reason)));
    };
-   addEventListener('message',receive);timer=setTimeout(()=>done(new Error(operation==='MAINT_COMMIT'?'保存結果尚未確認，請按「查核上次保存結果」，不要重新建立補登。':'連線逾時，請稍後再試。')),45000);
+   addEventListener('message',receive);timer=setTimeout(()=>done(new Error(['MAINT_COMMIT','MAINT_LEAVE_COMMIT'].includes(operation)?'保存結果尚未確認，請按「查核上次保存結果」，不要重新建立補登。':'連線逾時，請稍後再試。')),45000);
    document.body.append(frame,form);form.submit();
   });
  }
- function message(code,reason){return ({MAINT_ADMIN_REQUIRED:'目前這個 LINE 帳號尚未取得出勤維護權限。請由系統負責人設定專用管理者。',MAINT_AUTH:'無法核對登入身分，請重新登入。',MAINT_STALE:'原始資料已更新，請重新查詢並預覽。',MAINT_PREVIEW_REQUIRED:'預覽已失效，請重新預覽。',MAINT_REASON:'請填寫至少3字的更正原因。',MAINT_START_REQUIRED:'缺少上班紀錄，請先補齊上班時間。',MAINT_RETURN_REQUIRED:'中途離開後缺少返回，請先核對並補齊，才能保存下班。',MAINT_RETURN_ORDER:'沒有相對應的中途離開，不能補登中途返回。',MAINT_LEAVE_ORDER:'中途離開的前一筆必須是上班或中途返回。',MAINT_DUPLICATE_IN:'同一天只能有一筆有效上班。',MAINT_AFTER_END:'下班後不能再有當日出勤，請核對順序。',MAINT_SAME_TIME:'有兩筆出勤時間相同，請核對。',MAINT_FUTURE_TIME:'不能補登尚未發生的未來時間。',MAINT_DAY:'請選擇今天或以前的有效日期。',MAINT_EMPTY_DAY:'至少保留一筆有效出勤紀錄。',MAINT_DISABLED:'出勤維護尚未啟用。',MAINT_ID_CONFLICT:'這個保存編號已有不同內容，請先查核上次結果。',MAINT_SAVE_UNKNOWN:'保存結果尚未確認，請查核上次保存結果。'})[reason||code]||'目前無法完成操作，請稍後重試；保存後結果不明時請先查核。';}
+ function message(code,reason){return ({MAINT_ADMIN_REQUIRED:'目前這個 LINE 帳號尚未取得出勤維護權限。請由系統負責人設定專用管理者。',MAINT_LEAVE_FORM:'請核對保留單、作廢單與至少3字的作廢原因。',MAINT_LEAVE_STALE:'假單已更新，請重新查詢後預覽。',MAINT_LEAVE_PAIR:'請選擇同一員工的兩張不同假單。',MAINT_LEAVE_STATUS:'只可作廢待審或核准的重複單，保留單必須已核准。',MAINT_LEAVE_NOT_DUPLICATE:'兩張假單的假別、日期或時段不同，不能視為重複單作廢。',MAINT_LEAVE_ALREADY_VOIDED:'此張假單已作廢，請重新查詢。',MAINT_LEAVE_PREVIEW_REQUIRED:'作廢預覽已失效，請重新預覽。',MAINT_LEAVE_ID_CONFLICT:'這筆保存編號已有不同內容，請先查核上次結果。',MAINT_LEAVE_AUDIT_INVALID:'作廢紀錄無法核對，請聯絡系統負責人。',MAINT_LEAVE_DISABLED:'請假作廢功能尚未開放。',MAINT_AUTH:'無法核對登入身分，請重新登入。',MAINT_STALE:'原始資料已更新，請重新查詢並預覽。',MAINT_PREVIEW_REQUIRED:'預覽已失效，請重新預覽。',MAINT_REASON:'請填寫至少3字的更正原因。',MAINT_START_REQUIRED:'缺少上班紀錄，請先補齊上班時間。',MAINT_RETURN_REQUIRED:'中途離開後缺少返回，請先核對並補齊，才能保存下班。',MAINT_RETURN_ORDER:'沒有相對應的中途離開，不能補登中途返回。',MAINT_LEAVE_ORDER:'中途離開的前一筆必須是上班或中途返回。',MAINT_DUPLICATE_IN:'同一天只能有一筆有效上班。',MAINT_AFTER_END:'下班後不能再有當日出勤，請核對順序。',MAINT_SAME_TIME:'有兩筆出勤時間相同，請核對。',MAINT_FUTURE_TIME:'不能補登尚未發生的未來時間。',MAINT_DAY:'請選擇今天或以前的有效日期。',MAINT_EMPTY_DAY:'至少保留一筆有效出勤紀錄。',MAINT_DISABLED:'出勤維護尚未啟用。',MAINT_ID_CONFLICT:'這個保存編號已有不同內容，請先查核上次結果。',MAINT_SAVE_UNKNOWN:'保存結果尚未確認，請查核上次保存結果。'})[reason||code]||'目前無法完成操作，請稍後重試；保存後結果不明時請先查核。';}
  function applyControls(){
   const locked=busy||!!pending||completed;
-  root.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=locked);
+  root.querySelectorAll('input,select,textarea').forEach(e=>e.disabled=locked||e.dataset.ineligible==='true');
   root.querySelectorAll('button').forEach(e=>e.disabled=locked);
   $('maintLogin').disabled=busy||completed;
   $('maintCheck').disabled=busy||completed||!pending||!token;
   $('maintNew').hidden=!completed;$('maintNew').disabled=busy||!!pending||!completed;
-  if(!locked){$('maintQuery').disabled=!access;$('maintAdd').disabled=!base;$('maintMakePreview').disabled=!base;}
-  if(completed){$('maintSave').hidden=false;$('maintSave').textContent='已保存';}
+  if(!locked){$('maintQuery').disabled=!access;$('maintAdd').disabled=!base;$('maintMakePreview').disabled=!base;$('maintLeaveMakePreview').disabled=!leaveBase;}
+  if(completed){const saved=$(mode==='LEAVE'?'maintLeaveSave':'maintSave');saved.hidden=false;saved.textContent='已保存';}
  }
  function completeSaved(reference,text){
   completed=true;newEditSession=false;proof=null;draft=null;savedMark=reference;
   try{sessionStorage.setItem('yc-maint-completed',JSON.stringify(reference));}catch(_){}
-  clearPreview();$('maintSave').hidden=false;tell(text,'success');applyControls();
+  clearPreview();tell(text,'success');applyControls();
  }
  function startAnother(){
   if(busy||pending||!completed)return;
-  completed=false;newEditSession=true;savedMark=null;base=null;draft=null;proof=null;
+  completed=false;newEditSession=true;savedMark=null;base=null;draft=null;proof=null;leaveBase=null;leaveDraft=null;leaveProof=null;
   try{sessionStorage.removeItem('yc-maint-completed');}catch(_){}
   $('maintEditor').hidden=true;$('maintOriginals').replaceChildren();$('maintManuals').replaceChildren();$('maintApplications').replaceChildren();$('maintReason').value='';$('maintPerson').textContent='';
-  $('maintEmployee').selectedIndex=-1;$('maintDate').value='';clearPreview();$('maintSave').textContent='確認保存更正';tell('');applyControls();
+  $('maintLeaveEditor').hidden=true;$('maintLeaveRows').replaceChildren();$('maintLeaveReason').value='';$('maintLeaveSave').textContent='確認作廢重複申請';$('maintEmployee').selectedIndex=-1;$('maintDate').value='';clearPreview();$('maintSave').textContent='確認保存更正';tell('');applyControls();
  }
  async function run(button,fn){
   if(busy||completed)return;
@@ -82,7 +82,7 @@ window.startAttendanceMaintenance=async function(){
   $('maintReason').value='';
   if(suggest){for(const m of access.defaultCase.suggestion.manuals)manualRow(m);$('maintReason').value=access.defaultCase.suggestion.reason;}
   const apps=$('maintApplications');apps.replaceChildren();
-  for(const a of day.applications){const b=a.body,status={APPROVED:'核准',PENDING:'待審核',REJECTED:'駁回'}[a.status]||a.status;apps.append(el('p',(a.kind==='LEAVE'?b.leaveType+' '+b.startDate+'～'+b.endDate+' '+(b.unit==='HOURS'?b.fromTime+'–'+b.toTime:'全天'):'員工補打卡 '+b.type+' '+b.time)+'｜'+status+'｜'+a.requestId));}
+  for(const a of day.applications){const b=a.body,status={APPROVED:'核准',PENDING:'待審核',REJECTED:'駁回',VOIDED:'作廢'}[a.status]||a.status;apps.append(el('p',(a.kind==='LEAVE'?b.leaveType+' '+b.startDate+'～'+b.endDate+' '+(b.unit==='HOURS'?b.fromTime+'–'+b.toTime:'全天'):'員工補打卡 '+b.type+' '+b.time)+'｜'+status+'｜'+a.requestId));}
   if(!day.applications.length)apps.textContent='當日沒有查到請假或員工補打卡申請。';
   $('maintDuplicate').hidden=!day.duplicateLeave;
   $('maintMakePreview').disabled=!!pending;
@@ -104,14 +104,16 @@ window.startAttendanceMaintenance=async function(){
   if(!liff.isLoggedIn()){if(interactive)liff.login({redirectUri:location.href});else tell('請按「確認 LINE 登入」，使用已授權的管理者帳號。');return;}
   token=liff.getIDToken()||'';access=await post('MAINT_ACCESS',{});$('maintIdentity').textContent='管理者：'+access.actor.name;$('maintControls').hidden=false;
   const select=$('maintEmployee');select.replaceChildren();for(const employee of access.employees)select.add(el('option',employee.company+'／'+employee.name,{value:employee.employeeId}));
-  $('maintCases').replaceChildren();for(const item of access.cases||[]){const button=el('button',item.label,{type:'button'});button.onclick=()=>run(button,async()=>{if(pending)throw new Error('請先查核上次保存結果。');access.defaultCase=item;await load(item.employeeId,item.date,true);});$('maintCases').append(button);}
+  $('maintCases').replaceChildren();$('maintLeaveMode').hidden=!access.leaveMaintenance;
   readPending();if(pending){tell('有一筆上次保存結果待查核，請先查核，不要重建補登。','error');return;}
-  if(savedMark)await load(savedMark.employeeId,savedMark.date);else if(access.defaultCase)await load(access.defaultCase.employeeId,access.defaultCase.date,true);else tell('權限核對完成，請選擇員工與日期查詢。','success');
+  if(savedMark){setMode(savedMark.kind==='LEAVE'?'LEAVE':'CLOCK');if(mode==='LEAVE')await loadLeave(savedMark.employeeId,savedMark.date,null,true);else await load(savedMark.employeeId,savedMark.date);}
+  else if(access.leaveCase){setMode('LEAVE');await loadLeave(access.leaveCase.employeeId,access.leaveCase.date,access.leaveCase);}
+  else tell('權限核對完成，請選擇維護項目、員工與日期查詢。','success');
  }
- $('maintQuery').onclick=()=>run($('maintQuery'),async()=>{if(pending)throw new Error('請先查核上次保存結果。');await load($('maintEmployee').value,$('maintDate').value);});
+ $('maintQuery').onclick=()=>run($('maintQuery'),async()=>{if(pending)throw new Error('請先查核上次保存結果。');if(mode==='LEAVE')await loadLeave($('maintEmployee').value,$('maintDate').value);else await load($('maintEmployee').value,$('maintDate').value);});
  $('maintAdd').onclick=()=>{if(busy||pending||completed)return;manualRow();clearPreview();};
  $('maintEditor').addEventListener('input',()=>{if(!busy&&!completed&&!pending)clearPreview();});
- $('maintEmployee').onchange=$('maintDate').onchange=()=>{clearPreview();$('maintEditor').hidden=true;base=null;};
+ $('maintEmployee').onchange=$('maintDate').onchange=()=>{clearPreview();$('maintEditor').hidden=true;$('maintLeaveEditor').hidden=true;base=null;leaveBase=null;};
  $('maintMakePreview').onclick=()=>run($('maintMakePreview'),async()=>{
   if(pending)throw new Error('請先查核上次保存結果。');draft=form();tell('正在核對更正後出勤順序…','busy');const result=await post('MAINT_PREVIEW',draft);proof=result.preview;
   const view=$('maintPreview');view.replaceChildren(el('h3','保存前核對'));
@@ -128,9 +130,63 @@ window.startAttendanceMaintenance=async function(){
   else {clearPreview();tell('操作紀錄已保存，匯入表同步尚未完成。請按「查核上次保存結果」，完成同步後再下載資料。','error');}
  });
  $('maintCheck').onclick=()=>run($('maintCheck'),async()=>{
-  if(!pending)return;const result=await post('MAINT_STATUS',pending);
-  if(result.saved){const reference={...pending,requestId:result.receipt};forgetPending();render(result.day);completeSaved(reference,'已確認保存成功，匯入表已同步。畫面已鎖定。保存編號：'+result.receipt);}
+  if(!pending)return;const leave=pending.kind==='LEAVE';const args=leave?{requestId:pending.requestId}:{requestId:pending.requestId,employeeId:pending.employeeId,date:pending.date};const result=await post(leave?'MAINT_LEAVE_STATUS':'MAINT_STATUS',args);
+  if(result.saved&&result.exportProjection==='CURRENT'){const reference={...pending,requestId:result.receipt};forgetPending();if(leave){setMode('LEAVE');renderLeave(result.day);}else render(result.day);completeSaved(reference,'已確認保存成功，匯入表已同步。畫面已鎖定。保存編號：'+result.receipt);}
+  else if(result.saved){tell('操作紀錄已保存，匯入表仍待同步。請稍後再查核，完成前先不要下載。','error');}
   else {forgetPending();clearPreview();tell('目前未查到保存紀錄。可重新預覽後再送出；本頁會沿用原保存編號。','info');}
  });
+
+ function setMode(next){
+  mode=next;$('maintDate').max=mode==='LEAVE'?'':today;
+  $('maintClockMode').setAttribute('aria-pressed',String(mode==='CLOCK'));$('maintLeaveMode').setAttribute('aria-pressed',String(mode==='LEAVE'));
+  $('maintScope').textContent=mode==='LEAVE'?'請假申請維護：目前提供重複申請作廢。保留同員工、同假別、同日期及時段的有效核准單，原申請及主管審核軌跡保留。':'出勤維護：更正正常卡及管理者補登。員工補打卡申請的個別維護，後續另行擴充。';
+ }
+ for(const [button,next] of [['maintClockMode','CLOCK'],['maintLeaveMode','LEAVE']])$(button).onclick=()=>{
+  if(busy||pending||completed)return;setMode(next);base=null;leaveBase=null;draft=null;leaveDraft=null;clearPreview();$('maintEditor').hidden=true;$('maintLeaveEditor').hidden=true;tell('請選擇員工與日期，再按查詢。');applyControls();
+ };
+ const statusText=s=>({APPROVED:'核准',PENDING:'待審核',REJECTED:'駁回',VOIDED:'作廢'})[s]||s;
+ function period(row){const b=row.body;return b.leaveType+'｜'+b.startDate+'～'+b.endDate+'｜'+(b.unit==='HOURS'?b.fromTime+'–'+b.toTime:'全天');}
+ function renderLeave(day,preset=null){
+  leaveBase=day;leaveDraft=null;clearPreview();$('maintEditor').hidden=true;$('maintLeaveEditor').hidden=false;$('maintEmployee').value=day.employee.employeeId;$('maintDate').value=day.date;
+  $('maintLeavePerson').textContent=day.employee.company+'／'+day.employee.name+'／'+day.date;
+  const rows=$('maintLeaveRows');rows.replaceChildren();
+  for(const item of day.rows){
+   const row=el('tr'),keep=el('input',undefined,{type:'radio',name:'leaveKeep',value:item.requestId,checked:preset?.keepId===item.requestId}),target=el('input',undefined,{type:'radio',name:'leaveTarget',value:item.requestId,checked:preset?.targetId===item.requestId});
+   keep.dataset.ineligible=String(!item.voidable||item.status!=='APPROVED');target.dataset.ineligible=String(!item.voidable||!['PENDING','APPROVED'].includes(item.status));keep.disabled=keep.dataset.ineligible==='true';target.disabled=target.dataset.ineligible==='true';
+   keep.setAttribute('aria-label','保留 '+item.requestId);target.setAttribute('aria-label','作廢 '+item.requestId);
+   const detail=el('td');detail.append(el('strong',period(item)),el('p','送件：'+item.submittedAt),el('p',item.requestId,{className:'small'}));
+   const state=el('td',statusText(item.status));if(item.originalReviewerName)state.append(el('p','原審核：'+item.originalReviewerName+'／'+item.originalReviewedAt,{className:'small'}));
+   if(item.status==='VOIDED')state.append(el('p','作廢原因：'+item.voidReason),el('p','保留：'+item.retainedRequestId,{className:'small'}));
+   row.append(detail,state,el('td'),el('td'));row.children[2].append(keep);row.children[3].append(target);rows.append(row);
+  }
+  if(!day.rows.length){const row=el('tr');row.append(el('td','這一天沒有查到新系統的請假申請。',{colSpan:4}));rows.append(row);}
+  $('maintLeaveReason').value=preset?.reason||'';
+  tell(preset?'已帶入重複請假單供核對，尚未作廢。請確認保留單、作廢單及原因，再按預覽。':'已讀取請假申請，尚未修改。');applyControls();
+ }
+ async function loadLeave(employeeId,date,preset=null,restore=false){
+  const result=await post('MAINT_LEAVE_QUERY',{employeeId,date});renderLeave(result.day,preset);
+  if(restore)completeSaved({...savedMark,kind:'LEAVE'},'此筆維護已保存，畫面已鎖定。若要處理另一筆，請按「開始另一筆維護」。');
+  return result.day;
+ }
+ function leaveForm(){
+  if(!leaveBase||$('maintEmployee').value!==leaveBase.employee.employeeId||$('maintDate').value!==leaveBase.date)throw Error('員工或日期已改變，請重新查詢。');
+  const radios=[...$('maintLeaveRows').querySelectorAll('input')],keep=radios.find(r=>r.name==='leaveKeep'&&r.checked),target=radios.find(r=>r.name==='leaveTarget'&&r.checked);
+  if(!keep||!target)throw Error('請選擇要保留的核准單，以及要作廢的重複單。');
+  if(keep.value===target.value)throw Error('保留單與作廢單必須是不同申請。');
+  return {requestId:leaveDraft?.requestId||id('V2_AVOID_'),employeeId:leaveBase.employee.employeeId,date:leaveBase.date,revision:leaveBase.revision,keepId:keep.value,targetId:target.value,reason:$('maintLeaveReason').value};
+ }
+ $('maintLeaveEditor').addEventListener('input',()=>{if(!busy&&!pending&&!completed)clearPreview();});
+ $('maintLeaveMakePreview').onclick=()=>run($('maintLeaveMakePreview'),async()=>{
+  leaveDraft=leaveForm();tell('正在核對重複請假單，尚未作廢…','busy');const result=await post('MAINT_LEAVE_PREVIEW',leaveDraft);leaveProof=result.preview;
+  const view=$('maintLeavePreview');view.replaceChildren(el('h3','作廢前核對'),el('p','保留：'+period(result.keep)),el('p',result.keep.requestId),el('p','作廢：'+period(result.target)+'（原狀態：'+statusText(result.target.status)+'）'),el('p',result.target.requestId),el('p','原因：'+leaveDraft.reason),el('p','確認後，「請假申請」會標示作廢並保留原主管審核資料，另新增一筆「請假作廢紀錄」。不會傳送新的請假或主管通知。'));
+  view.hidden=false;$('maintLeaveSave').hidden=false;tell('預覽完成，尚未作廢。請確認後再按「確認作廢重複申請」。','success');
+ });
+ $('maintLeaveSave').onclick=()=>run($('maintLeaveSave'),async()=>{
+  if(!leaveDraft||!leaveProof)throw Error('請先重新預覽。');pending={kind:'LEAVE',requestId:leaveDraft.requestId,employeeId:leaveDraft.employeeId,date:leaveDraft.date};readPending();tell('正在保存作廢紀錄，請等待結果…','busy');
+  const result=await post('MAINT_LEAVE_COMMIT',{...leaveDraft,preview:leaveProof});
+  if(result.saved&&result.exportProjection==='CURRENT'){const reference={...pending,requestId:result.receipt};forgetPending();renderLeave(result.day);completeSaved(reference,'重複假單已作廢，「請假申請」已同步。原申請及審核紀錄保留，畫面已鎖定。保存編號：'+result.receipt);}
+  else {clearPreview();tell('作廢紀錄已保存，匯入表同步尚未完成。請按「查核上次保存結果」，完成同步後再下載。','error');}
+ });
+ setMode('CLOCK');
  await run($('maintLogin'),login);
 };
