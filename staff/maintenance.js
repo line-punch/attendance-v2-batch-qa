@@ -64,10 +64,10 @@ window.startAttendanceMaintenance=async function(){
   return {employeeId:base.employee.employeeId,date:base.date,revision:base.revision,requestId:draft?.requestId||id(),reason:$('maintReason').value,edits:[...$('maintOriginals').querySelectorAll('tr[data-request-id]')].map(r=>({requestId:r.dataset.requestId,type:r.querySelector('select').value,time:(r.querySelector('input[type=time]').value.length===5?r.querySelector('input[type=time]').value+':00':r.querySelector('input[type=time]').value),void:r.querySelector('input[type=checkbox]').checked})),manuals:[...$('maintManuals').children].map(r=>({requestId:r.dataset.requestId,type:r.querySelector('select').value,time:r.querySelector('input[type=time]').value}))};
  }
  async function load(id,date,suggest=false){const result=await post('MAINT_QUERY',{employeeId:id,date});render(result.day,suggest&&result.day.version===0);}
- $('maintLogin').onclick=()=>run($('maintLogin'),async()=>{await login();});
- async function login(){
+ $('maintLogin').onclick=()=>run($('maintLogin'),async()=>{await login(true);});
+ async function login(interactive=false){
   tell('正在核對 LINE 登入與管理者權限…','busy');await liff.init({liffId:window.V2_QA_LIFF_ID});
-  if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return;}
+  if(!liff.isLoggedIn()){if(interactive)liff.login({redirectUri:location.href});else tell('請按「確認 LINE 登入」，使用已授權的管理者帳號。');return;}
   token=liff.getIDToken()||'';access=await post('MAINT_ACCESS',{});$('maintIdentity').textContent='管理者：'+access.actor.name;$('maintControls').hidden=false;
   const select=$('maintEmployee');select.replaceChildren();for(const employee of access.employees)select.add(el('option',employee.company+'／'+employee.name,{value:employee.employeeId}));
   readPending();if(pending){tell('有一筆上次保存結果待查核，請先查核，不要重建補登。','error');return;}
@@ -80,7 +80,7 @@ window.startAttendanceMaintenance=async function(){
  $('maintMakePreview').onclick=()=>run($('maintMakePreview'),async()=>{
   if(pending)throw new Error('請先查核上次保存結果。');draft=form();tell('正在核對更正後出勤順序…','busy');const result=await post('MAINT_PREVIEW',draft);proof=result.preview;
   const view=$('maintPreview');view.replaceChildren(el('h3','保存前核對'));
-  for(const r of result.sequence)view.append(el('p',r.time+(r.origin==='ADMIN'?'（分鐘補登）':'')+'　'+(r.type==='返回'?'中途返回':r.type)+'　'+({NORMAL:'正常卡／更正結果',ADMIN:'管理者補登',APPROVED_MISSING:'已核准員工補卡'})[r.origin]));
+  for(const r of result.sequence)view.append(el('p',(r.origin==='NORMAL'?r.time:r.time.slice(0,5))+(r.origin==='ADMIN'?'（分鐘補登）':'')+'　'+(r.type==='返回'?'中途返回':r.type)+'　'+({NORMAL:'正常卡／更正結果',ADMIN:'管理者補登',APPROVED_MISSING:'已核准員工補卡'})[r.origin]));
   view.append(el('p','更正原因：'+draft.reason));for(const w of result.warnings)view.append(el('p',w,{className:'note'}));
   view.append(el('p','正常卡更正寫入「打卡紀錄」；補登寫入「補打卡申請」（核准）；請假單維持原狀。原卡及修改前後另留操作紀錄。'));
   view.hidden=false;$('maintSave').hidden=false;tell('預覽完成，尚未保存。請確認後再按「確認保存更正」。','success');
@@ -95,7 +95,7 @@ window.startAttendanceMaintenance=async function(){
  $('maintCheck').onclick=()=>run($('maintCheck'),async()=>{
   if(!pending)return;const result=await post('MAINT_STATUS',pending);
   if(result.saved){forgetPending();clearPreview();render(result.day);tell('已確認保存成功，匯入表已同步。保存編號：'+result.receipt,'success');}
-  else {tell('目前尚未查到這筆保存。請稍後再次查核；若要重送，請保留同一預覽與保存編號。','error');if(draft&&proof)$('maintSave').hidden=false;}
+  else {forgetPending();clearPreview();tell('目前未查到保存紀錄。可重新預覽後再送出；本頁會沿用原保存編號。','info');}
  });
  await run($('maintLogin'),login);
 };
