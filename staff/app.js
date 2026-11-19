@@ -1,6 +1,8 @@
 "use strict";
 /* TEST001 QA ONLY. NOT DEPLOYED. No production URLs or passwords embedded. */
 (function(){
+if(new URLSearchParams(location.search).get("page")==="maintenance"){window.startAttendanceMaintenance();return;}
+
 const LIFF_ID=String(window.V2_QA_LIFF_ID||"");
 const BRIDGE="YC_V2_STAFF_V1";
 const $=id=>document.getElementById(id);
@@ -362,7 +364,7 @@ function renderHistory(operation,result){
   // A mixed-kind response must never show another workflow in this table.
   if(row.kind!==(missing?"MISSING":"LEAVE"))continue;
   const tr=document.createElement("tr");
-  const values=missing?[row.date,row.type,row.time,row.submittedAt||"—",row.legacyStatusLabel||states[row.status]||row.status,row.requestId]:
+  const values=missing?[row.date,row.type,row.time,row.submittedAt||"—",(row.sourceLabel?row.sourceLabel+"／":"")+(row.legacyStatusLabel||states[row.status]||row.status),row.requestId]:
    [row.startDate,row.endDate,row.leaveType,row.legacyUnitLabel?row.legacyUnitLabel:row.unit==="HOURS"?
     (row.fromTime||"")+"～"+(row.toTime||""):"全天",row.submittedAt||"—",states[row.status]||row.status,row.requestId];
   for(const [index,value] of values.entries()){
