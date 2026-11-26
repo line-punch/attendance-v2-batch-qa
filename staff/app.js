@@ -81,7 +81,7 @@ function confirmForm(op,id){
  const [button,receipt,fields]=formConfig[op];
  $(fields).hidden=false;
  for(const field of (op==='LEAVE_REQUEST'?['start','end','leaveType','unit','fromTime','toTime','reason']:['missingDate','missingTime','missingType','missingReason'])){$(field).value='';$(field).disabled=true;}
- if(op==='LEAVE_REQUEST')$('hourFields').hidden=true;
+ if(op==='LEAVE_REQUEST'){$('hourFields').hidden=true;updateLeaveTimingHint();}
  $(button).setAttribute("data-confirmed","true");
  $(button).setAttribute("data-unavailable","true");$(button).disabled=true;
  $(button).textContent="已送出（請查看紀錄）";
@@ -176,6 +176,7 @@ function staffReplyMessage(response,operation){
   NON_WORKDAY_IN_RANGE:'申請範圍包含非工作日，請依工作日分開申請。',
   CALENDAR_OR_EVENT_REVIEW_REQUIRED:'該日期的行事曆或停班事件須人資核對，暫不能送件。',
   LEAVE_HOURS_INVALID:'請檢查請假時段：指定時數只限單日，結束時間須晚於開始時間。',
+  LEAVE_BACKDATE_EXPIRED:'已超過請假日後3天的補請期限，請交由管理者補登；本次未送出。',
   LEAVE_DATES_INVALID:'請檢查開始及結束日期，結束日期不可早於開始日期。',
   CONFIG_OR_FORM:'系統設定或送出格式需核對，請聯絡管理者；本次未寫入。'
  };
@@ -269,8 +270,24 @@ for(const [id,initial] of [["fromTime","09:00"],["toTime","11:00"]]){
  for(const time of leaveTimeOptions)field.add(new Option(time,time));
  field.value=initial;
 }
+function updateLeaveTimingHint(){
+ const today=localToday();
+ const oldest=new Date(Date.parse(today+"T00:00:00Z")-3*86400000).toISOString().slice(0,10);
+ $("start").min=oldest;$("end").min=oldest;
+ const start=$("start").value,reason=$("reason").value.trim();
+ const late=start&&start<today;
+ $("leaveTimingHint").textContent=start&&start<oldest?
+  "已超過請假日後3天的補請期限，請交由管理者補登。":late?
+  "這筆是假後補請，送出時原因會自動加上「(假後補請)」，仍需主管簽核。"+
+   (reason?"\n送出原因：(假後補請)"+reason.replace(/^(?:\(假後補請\)\s*)+/,""):""):
+  "事前或當天申請照常送件，仍需主管簽核。";
+}
+for(const id of ["start","end","reason"])$(id).addEventListener("input",updateLeaveTimingHint);
 function requestBody(operation){
  if(["LEAVE_PREVIEW","LEAVE_REQUEST"].includes(operation)){
+  updateLeaveTimingHint();
+  if($("start").value&&$("start").value<$("start").min)
+   throw Error("已超過請假日後3天的補請期限，請交由管理者補登。");
   if($("unit").value==="HOURS"){
    const from=$("fromTime").value,to=$("toTime").value;
    if(!leaveTimeOptions.includes(from)||!leaveTimeOptions.includes(to))
@@ -358,7 +375,7 @@ function renderHistory(operation,result){
  const table=document.createElement("table");
  const head=document.createElement("tr");
  const titles=missing?["補卡日期","上班／下班","申請時間","送件日期","狀態","申請編號"]:
-    ["開始日期","結束日期","假別","時段","送件日期","狀態","申請編號"];
+    ["開始日期","結束日期","假別","時段","請假原因","送件日期","狀態","申請編號"];
  for(const title of titles){
   const cell=document.createElement("th");cell.textContent=title;head.appendChild(cell);
  }
@@ -370,7 +387,7 @@ function renderHistory(operation,result){
   const tr=document.createElement("tr");
   const values=missing?[row.date,row.type,row.time,row.submittedAt||"—",(row.sourceLabel?row.sourceLabel+"／":"")+(row.legacyStatusLabel||states[row.status]||row.status),row.requestId]:
    [row.startDate,row.endDate,row.leaveType,row.legacyUnitLabel?row.legacyUnitLabel:row.unit==="HOURS"?
-    (row.fromTime||"")+"～"+(row.toTime||""):"全天",row.submittedAt||"—",states[row.status]||row.status,row.requestId];
+    (row.fromTime||"")+"～"+(row.toTime||""):"全天",row.reason||"",row.submittedAt||"—",states[row.status]||row.status,row.requestId];
   for(const [index,value] of values.entries()){
    const td=document.createElement("td");td.textContent=String(value||"");
    td.setAttribute("data-label",titles[index]);tr.appendChild(td);
@@ -648,7 +665,7 @@ function resetStaffApplication(op,id){
  if(op==="LEAVE_REQUEST"){
   $("leaveType").selectedIndex=0;$("start").value=date;$("end").value=date;
   $("unit").value="DAY";$("fromTime").value="09:00";$("toTime").value="11:00";
-  $("reason").value="";updateLeaveUnit();
+  $("reason").value="";updateLeaveUnit();updateLeaveTimingHint();
  }else{
   $("missingDate").value=date;$("missingTime").value="08:30";
   $("missingType").selectedIndex=0;$("missingReason").value="";
@@ -751,6 +768,7 @@ for(const [id,type] of punchButtons){
 }
 onAction("confirmMissingClock",()=>{status('請先打中途返回；若誤按或漏打，請聯絡管理者更正。','error');});
 if(unknownWrite)document.querySelectorAll("button").forEach(b=>{if(writeButtons.has(b.id))b.disabled=true;});
+updateLeaveTimingHint();
 prepareStaffRecords();
 selectStaffPage();
 applyStaffClockButtons();

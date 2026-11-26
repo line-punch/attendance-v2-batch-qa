@@ -96,7 +96,9 @@ button[data-state=busy]{opacity:1!important;transform:translateY(3px);background
 <label>開始時間<select id="fromTime"></select></label>
 <label>結束時間<select id="toTime"></select></label>
 </div>
-<label>請假原因<textarea id="reason"></textarea></label>
+<p class="small">請假日後3天內可補送申請，仍需主管簽核；超過期限請交由管理者補登。</p>
+<label>請假原因<textarea id="reason" maxlength="500" aria-describedby="leaveTimingHint"></textarea></label>
+<p id="leaveTimingHint" class="small" role="status" aria-live="polite" style="white-space:pre-line"></p>
 </div>
 
 <button id="submitLeave" type="button">送出請假申請</button>
@@ -139,4 +141,5 @@ button[data-state=busy]{opacity:1!important;transform:translateY(3px);background
 <script src="./config.js?v=20261109simple1"></script>
 <script src="./review-entry.js?v=20261109simple1"></script>
 <script src="./maintenance.js?v=20261119authrefresh1"></script>
-<script src="./app.js?v=20261119leavevoid1"></script></body></html>
+<script src="./app.js?v=20261126lateleave1"></script></body></html>
+
